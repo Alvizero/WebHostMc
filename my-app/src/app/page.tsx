@@ -1,34 +1,61 @@
 'use client';
 
 import React, { useState } from "react";
-import { ChevronLeft, ChevronRight, Server, Clock, User, Settings, Check, Zap, Shield, Cpu } from "lucide-react";
+import { ChevronLeft, ChevronRight, Server, Clock, User, Settings, Check, Zap, Shield, Cpu, Package, Rocket } from "lucide-react";
 
 const serverOptions = [
   { 
     name: "Server Base", 
     cpu: "2 vCPU", 
-    ram: "5GB RAM", 
-    ssd: "10GB SSD", 
-    price: 9.99,
+    ram: "4GB RAM", 
+    ssd: "15GB SSD", 
+    price: 7.20,
     icon: <Server className="w-6 h-6" />,
     popular: false
   },
   { 
     name: "Server Medio", 
     cpu: "4 vCPU", 
-    ram: "10GB RAM", 
-    ssd: "20GB SSD", 
-    price: 19.99,
+    ram: "6GB RAM", 
+    ssd: "35GB SSD", 
+    price: 10.80,
     icon: <Zap className="w-6 h-6" />,
     popular: true
   },
   { 
     name: "Server Pro", 
-    cpu: "8 vCPU", 
-    ram: "20GB RAM", 
+    cpu: "4 vCPU", 
+    ram: "8GB RAM", 
     ssd: "50GB SSD", 
-    price: 39.99,
+    price: 14.40,
     icon: <Shield className="w-6 h-6" />,
+    popular: false
+  },
+  { 
+    name: "Modpack Base", 
+    cpu: "4 vCPU", 
+    ram: "12GB RAM", 
+    ssd: "60GB SSD", 
+    price: 14.40,
+    icon: <Cpu className="w-6 h-6" />,
+    popular: false
+  },
+  { 
+    name: "Modpack Medio", 
+    cpu: "4 vCPU", 
+    ram: "14GB RAM", 
+    ssd: "80GB SSD", 
+    price: 25.20,
+    icon: <Package className="w-6 h-6" />,
+    popular: false
+  },
+  { 
+    name: "Modpack Pro", 
+    cpu: "4 vCPU", 
+    ram: "14GB RAM", 
+    ssd: "100GB SSD", 
+    price: 28.80,
+    icon: <Rocket className="w-6 h-6" />,
     popular: false
   },
 ];
@@ -239,7 +266,7 @@ export default function Page() {
                         <div className="flex items-center justify-between mb-4">
                           <div className="text-purple-400">{server.icon}</div>
                           <div className="text-right">
-                            <p className="text-2xl font-bold text-white">${server.price}</p>
+                            <p className="text-2xl font-bold text-white">€{server.price}</p>
                             <p className="text-gray-400 text-sm">/mese</p>
                           </div>
                         </div>
@@ -311,7 +338,7 @@ export default function Page() {
                   className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-4 px-6 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-2"
                 >
                   Continua
-                  <span className="text-xl">→</span>
+                  <span className="text-xl"><ChevronRight className="w-5 h-5" /></span>
                 </button>
               </div>
             )}
@@ -391,7 +418,7 @@ export default function Page() {
                     onClick={prevStep}
                     className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 px-8 rounded-xl transition-all duration-300 transform hover:scale-105 flex items-center gap-2"
                   >
-                    <span className="text-xl">←</span>
+                    <span className="text-xl"><ChevronLeft className="w-5 h-5" /></span>
                     Indietro
                   </button>
                   <button
@@ -399,7 +426,7 @@ export default function Page() {
                     className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 px-8 rounded-xl transition-all duration-300 transform hover:scale-105 flex items-center gap-2"
                   >
                     Continua
-                    <span className="text-xl">→</span>
+                    <span className="text-xl"><ChevronRight className="w-5 h-5" /></span>
                   </button>
                 </div>
               </div>
@@ -565,7 +592,7 @@ export default function Page() {
                     onClick={prevStep}
                     className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 px-8 rounded-xl transition-all duration-300 transform hover:scale-105 flex items-center gap-2"
                   >
-                    <span className="text-xl">←</span>
+                    <span className="text-xl"><ChevronLeft className="w-5 h-5" /></span>
                     Indietro
                   </button>
                   <button
@@ -573,7 +600,7 @@ export default function Page() {
                     disabled={!serverConfig.name || (!serverConfig.version && !customVersion)}
                     className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-bold py-3 px-8 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 flex items-center gap-2"
                   >
-                    <span className="text-xl">✓</span>
+                    <span className="text-xl"><Check className="w-5 h-5" /></span>
                     Conferma Ordine
                   </button>
                 </div>
