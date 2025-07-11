@@ -141,46 +141,46 @@ export default function Page() {
     setStep((prev) => prev + 1);
   };
 
-const handleNextStep = async () => {
-  if (step === 2 && !validateForm()) return;
+  const handleNextStep = async () => {
+    if (step === 2 && !validateForm()) return;
 
-  if (step === 2) {
-    try {
-      if (isNewUser) {
-        const res = await fetch("http://localhost:3001/api/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(userData),
-        });
+    if (step === 2) {
+      try {
+        if (isNewUser) {
+          const res = await fetch("http://localhost:3001/api/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(userData),
+          });
 
-        if (!res.ok) {
-          const { error } = await res.json();
-          alert(error);
-          return;
+          if (!res.ok) {
+            const { error } = await res.json();
+            alert(error);
+            return;
+          }
+        } else {
+          const res = await fetch("http://localhost:3001/api/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: userData.email, password: userData.password }),
+          });
+
+          if (!res.ok) {
+            const { error } = await res.json();
+            alert(error);
+            return;
+          }
         }
-      } else {
-        const res = await fetch("http://localhost:3001/api/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: userData.email, password: userData.password }),
-        });
 
-        if (!res.ok) {
-          const { error } = await res.json();
-          alert(error);
-          return;
-        }
+        nextStep();
+      } catch (err) {
+        console.error("Errore durante login/registrazione:", err);
+        alert("Errore nella connessione al server.");
       }
-
+    } else {
       nextStep();
-    } catch (err) {
-      console.error("Errore durante login/registrazione:", err);
-      alert("Errore nella connessione al server.");
     }
-  } else {
-    nextStep();
-  }
-};
+  };
 
   const validateUsername = (username) => {
     return username.length >= 3 && /^[a-zA-Z0-9_]+$/.test(username);
@@ -217,7 +217,7 @@ const handleNextStep = async () => {
 
   const filteredVersions = showOnlyLatest ? versions.filter(v => v.ultima_versione === 1) : versions;
 
-function calculatePrice() {
+  function calculatePrice() {
     if (!selectedServer) return 0;
     
     const durata = durateNoleggio.find(d => d.mesi === duration);
@@ -227,7 +227,7 @@ function calculatePrice() {
     const sconto = durata.prezzo_sconto || 0;
 
     return prezzoBase * (1 - sconto / 100);
-    }
+  }
 
   const handleSubmit = () => {
   const finalVersion = useCustomVersion ? customVersion : serverConfig.version;
