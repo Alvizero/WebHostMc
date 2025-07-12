@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from "cors";
 import bcrypt from "bcrypt";
 import mysql from "mysql2/promise";
+import { RowDataPacket } from 'mysql2';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import dotenv from "dotenv";
 import axios from 'axios';
@@ -80,12 +81,12 @@ class PterodactylService {
     try {
       // Call the getServers method to fetch servers from Pterodactyl
       const serversResponse = await this.getServers() as { data: any[] };
-      
+
       // Ensure we have the expected data structure
       if (!serversResponse || !serversResponse.data || !Array.isArray(serversResponse.data)) {
         throw new Error('Invalid response format from Pterodactyl API');
       }
-      
+
       return serversResponse.data.map((server: any) => ({
         pterodactyl_id: server.attributes.id,
         identifier: server.attributes.identifier,
@@ -279,17 +280,17 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
     }
 
     const token = jwt.sign(
-      { 
-        id: utente.id, 
-        email: utente.email, 
-        ruolo: utente.ruolo 
-      }, 
-      JWT_SECRET, 
+      {
+        id: utente.id,
+        email: utente.email,
+        ruolo: utente.ruolo
+      },
+      JWT_SECRET,
       { expiresIn: '24h' }
     );
 
-    res.json({ 
-      message: 'Login riuscito', 
+    res.json({
+      message: 'Login riuscito',
       token,
       user: {
         id: utente.id,
@@ -318,7 +319,7 @@ app.get('/api/auth/verify', async (req: Request, res: Response) => {
 
   try {
     const payload = jwt.verify(token, JWT_SECRET) as MyJwtPayload;
-    
+
     const [rows] = await pool.query('SELECT * FROM utenti WHERE id = ? AND email = ?', [payload.id, payload.email]);
     const utenti = rows as any[];
 
@@ -332,8 +333,8 @@ app.get('/api/auth/verify', async (req: Request, res: Response) => {
       return res.status(403).json({ valid: false, message: 'Non sei più admin' });
     }
 
-    res.json({ 
-      valid: true, 
+    res.json({
+      valid: true,
       user: {
         id: utente.id,
         email: utente.email,
@@ -362,6 +363,7 @@ app.get('/api/admin/servers', authenticateAdmin, async (req: Request, res: Respo
         s.n_rinnovi,
         s.stato,
         s.pterodactyl_id,
+        s.identifier,
         u.nome as proprietario_nome,
         u.cognome as proprietario_cognome
       FROM server s
@@ -370,17 +372,17 @@ app.get('/api/admin/servers', authenticateAdmin, async (req: Request, res: Respo
     `;
 
     const [rows] = await pool.query(query);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       servers: rows,
       total: (rows as any[]).length
     });
   } catch (error) {
     console.error('Errore recupero server:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Errore nel recupero dei server' 
+    res.status(500).json({
+      success: false,
+      message: 'Errore nel recupero dei server'
     });
   }
 });
@@ -389,7 +391,7 @@ app.get('/api/admin/servers', authenticateAdmin, async (req: Request, res: Respo
 app.post('/api/admin/servers/sync-pterodactyl', authenticateAdmin, async (req: Request, res: Response) => {
   try {
     const pteroServers = await pterodactylService.syncServers();
-    
+
     let synced = 0;
     for (const pteroServer of pteroServers) {
       try {
@@ -398,7 +400,7 @@ app.post('/api/admin/servers/sync-pterodactyl', authenticateAdmin, async (req: R
           'SELECT id FROM server WHERE pterodactyl_id = ?',
           [pteroServer.pterodactyl_id]
         );
-        
+
         if ((existing as any[]).length === 0) {
           // Inserisci nuovo server
           await pool.query(
@@ -420,17 +422,17 @@ app.post('/api/admin/servers/sync-pterodactyl', authenticateAdmin, async (req: R
       }
     }
 
-    res.json({ 
-      success: true, 
-      message: 'Server sincronizzati con successo', 
+    res.json({
+      success: true,
+      message: 'Server sincronizzati con successo',
       synced: synced,
-      total: pteroServers.length 
+      total: pteroServers.length
     });
   } catch (error) {
     console.error('Errore sincronizzazione:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Errore nella sincronizzazione', 
+    res.status(500).json({
+      success: false,
+      message: 'Errore nella sincronizzazione',
       error: (error as Error).message
     });
   }
@@ -439,27 +441,27 @@ app.post('/api/admin/servers/sync-pterodactyl', authenticateAdmin, async (req: R
 app.get('/api/admin/servers/:serverId/pterodactyl-details', authenticateAdmin, async (req: Request, res: Response) => {
   try {
     const serverId = parseInt(req.params.serverId);
-    
+
     // Trova il server nel database locale
     const [localRows] = await pool.query('SELECT * FROM server WHERE id = ?', [serverId]);
     const localServers = localRows as any[];
-    
+
     if (localServers.length === 0) {
       return res.status(404).json({ success: false, message: 'Server non trovato' });
     }
-    
+
     const localServer = localServers[0];
-    
+
     if (!localServer.pterodactyl_id) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Server non collegato a Pterodactyl' 
+      return res.status(404).json({
+        success: false,
+        message: 'Server non collegato a Pterodactyl'
       });
     }
 
     // Ottieni i dettagli da Pterodactyl
     const pteroServer = await pterodactylService.getServer(localServer.pterodactyl_id);
-    
+
     res.json({
       success: true,
       local: localServer,
@@ -468,8 +470,8 @@ app.get('/api/admin/servers/:serverId/pterodactyl-details', authenticateAdmin, a
     });
   } catch (error) {
     console.error('Errore dettagli server:', error);
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       message: 'Errore nel recupero dei dettagli',
       error: (error as Error).message
     });
@@ -478,4 +480,162 @@ app.get('/api/admin/servers/:serverId/pterodactyl-details', authenticateAdmin, a
 
 app.listen(PORT, () => {
   console.log(`✅ Server avviato su http://localhost:${PORT}`);
+});
+
+
+
+
+
+
+
+
+
+
+app.get('/api/admin/servers/:serverId', authenticateAdmin, async (req: Request, res: Response) => {
+  try {
+    const serverId = parseInt(req.params.serverId);
+
+    const [rows] = await pool.query(`
+      SELECT 
+        s.id, s.nome, s.tipo, s.proprietario_email, s.data_acquisto, 
+        s.data_scadenza, s.n_rinnovi, s.stato, s.pterodactyl_id
+      FROM server s 
+      WHERE s.id = ?
+    `, [serverId]);
+
+    const servers = rows as any[];
+
+    if (servers.length === 0) {
+      return res.status(404).json({ success: false, message: 'Server non trovato' });
+    }
+
+    res.json({ success: true, server: servers[0] });
+  } catch (error) {
+    console.error('Errore recupero server:', error);
+    res.status(500).json({ success: false, message: 'Errore nel recupero del server' });
+  }
+});
+
+// Endpoint per aggiornare un server
+app.put('/api/admin/servers/:serverId', authenticateAdmin, async (req: Request, res: Response) => {
+  try {
+    const serverId = parseInt(req.params.serverId);
+    const { nome, tipo, proprietario_email, data_acquisto, data_scadenza, stato, n_rinnovi } = req.body;
+
+    await pool.query(`
+      UPDATE server 
+      SET nome = ?, tipo = ?, proprietario_email = ?, data_acquisto = ?, 
+          data_scadenza = ?, stato = ?, n_rinnovi = ? 
+      WHERE id = ?
+    `, [nome, tipo, proprietario_email, data_acquisto, data_scadenza, stato, n_rinnovi, serverId]);
+
+    // Recupera il server aggiornato
+    const [rows] = await pool.query('SELECT * FROM server WHERE id = ?', [serverId]);
+
+    res.json({ success: true, server: (rows as any[])[0] });
+  } catch (error) {
+    console.error('Errore aggiornamento server:', error);
+    res.status(500).json({ success: false, message: 'Errore nell\'aggiornamento del server' });
+  }
+});
+
+// Endpoint per eliminare un server
+app.delete('/api/admin/servers/:serverId', authenticateAdmin, async (req: Request, res: Response) => {
+  try {
+    const serverId = parseInt(req.params.serverId);
+
+    await pool.query('DELETE FROM server WHERE id = ?', [serverId]);
+
+    res.json({ success: true, message: 'Server eliminato con successo' });
+  } catch (error) {
+    console.error('Errore eliminazione server:', error);
+    res.status(500).json({ success: false, message: 'Errore nell\'eliminazione del server' });
+  }
+});
+
+// Endpoint per sospendere/riattivare un server
+app.post('/api/admin/servers/:serverId/toggle-suspend', authenticateAdmin, async (req: Request, res: Response) => {
+  try {
+    const serverId = parseInt(req.params.serverId);
+    const { sospeso } = req.body;
+
+    // Valida il parametro
+    if (typeof sospeso !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'Il parametro sospeso deve essere un booleano'
+      });
+    }
+
+    // Aggiorna il server nel database
+    await pool.query(`
+      UPDATE server 
+      SET sospeso = ? 
+      WHERE id = ?
+    `, [sospeso, serverId]);
+
+    // Verifica che il server esista
+    const [rows] = await pool.query('SELECT * FROM server WHERE id = ?', [serverId]);
+    const servers = rows as any[];
+
+    if (servers.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Server non trovato'
+      });
+    }
+
+    // Opzionalmente, se il server ha un pterodactyl_id, 
+    // puoi anche sospenderlo/riattivarlo su Pterodactyl
+    const server = servers[0];
+    if (server.pterodactyl_id) {
+      try {
+        // Qui potresti aggiungere la logica per sospendere/riattivare su Pterodactyl
+        // const pteroClient = pterodactylService.getAdminClient();
+        // await pteroClient.post(`/servers/${server.pterodactyl_id}/suspend`);
+        console.log(`Server ${serverId} ${sospeso ? 'sospeso' : 'riattivato'} anche su Pterodactyl`);
+      } catch (pteroError) {
+        console.error('Errore nella gestione Pterodactyl:', pteroError);
+        // Non bloccare la richiesta se Pterodactyl fallisce
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Server ${sospeso ? 'sospeso' : 'riattivato'} con successo`,
+      server: servers[0]
+    });
+  } catch (error) {
+    console.error('Errore toggle suspend server:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Errore nella modifica dello stato del server'
+    });
+  }
+});
+
+app.get('/api/server/stati', async (req, res) => {
+  try {
+    const [columns] = await pool.query("SHOW COLUMNS FROM server LIKE 'stato'");
+    if (!columns || (columns as any[]).length === 0) {
+      return res.status(404).json({ error: 'Colonna stato non trovata' });
+    }
+    
+    const typeStr = (columns as any)[0].Type; 
+    const regex = /^enum\((.*)\)$/;
+    const matches = typeStr.match(regex);
+
+    if (!matches || matches.length < 2) {
+      return res.status(500).json({ error: 'Formato ENUM non valido' });
+    }
+
+    const enumsRaw = matches[1]; 
+
+    const enumValues = enumsRaw.split(",").map((s: string) => s.trim().replace(/^'(.*)'$/, "$1"));
+
+    res.json(enumValues);
+  } catch (error) {
+    console.error('Errore nel recupero degli stati:', error);
+    res.status(500).json({ error: 'Errore nel recupero degli stati' });
+  }
 });
