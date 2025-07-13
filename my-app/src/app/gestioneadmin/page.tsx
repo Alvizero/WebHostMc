@@ -403,11 +403,27 @@ const ServerDashboard = ({ servers, onRefresh, loading: serversLoading, onCreate
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{server.proprietario_email}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                {new Date(server.data_acquisto).toLocaleDateString('it-IT')}
+                                                <div className={isExpiringSoon() ? 'text-yellow-600 font-medium' : ''}>
+                                                    {server.data_acquisto
+                                                        ? (() => {
+                                                            const d = new Date(server.data_acquisto);
+                                                            return isNaN(d.getTime())
+                                                                ? '—'
+                                                                : d.toLocaleDateString('it-IT');
+                                                        })()
+                                                        : '—'}
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                                 <div className={isExpiringSoon() ? 'text-yellow-600 font-medium' : ''}>
-                                                    {new Date(server.data_scadenza).toLocaleDateString('it-IT')}
+                                                    {server.data_scadenza
+                                                        ? (() => {
+                                                            const d = new Date(server.data_scadenza);
+                                                            return isNaN(d.getTime())
+                                                                ? '—'
+                                                                : d.toLocaleDateString('it-IT');
+                                                        })()
+                                                        : '—'}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{server.n_rinnovi}</td>
@@ -546,7 +562,7 @@ const ServerManagementPage = ({ serverId, identifier, onBack }) => {
     }, [server, authToken]);
 
     const handleInputChange = (field, value) => {
-        setServer(prev => ({ ...prev, [field]: value }));
+        setServer((prev) => ({ ...prev, [field]: value === '' ? null : value, }));
     };
 
     const handleSave = async () => {
@@ -583,7 +599,7 @@ const ServerManagementPage = ({ serverId, identifier, onBack }) => {
 
             // Mostra messaggio di successo
             alert('Server aggiornato con successo!');
-        } catch (err) {
+        } catch (err: any) {
             setError(err.message);
         } finally {
             setIsSaving(false);
@@ -1067,13 +1083,19 @@ const ServerManagementPage = ({ serverId, identifier, onBack }) => {
                                 {isEditing ? (
                                     <input
                                         type="date"
-                                        value={server.data_acquisto}
+                                        value={
+                                            server.data_acquisto
+                                                ? new Date(server.data_acquisto).toISOString().split('T')[0]
+                                                : ''
+                                        }
                                         onChange={(e) => handleInputChange('data_acquisto', e.target.value)}
                                         className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400"
                                     />
                                 ) : (
                                     <p className="text-slate-900 py-3 font-medium bg-slate-50 px-4 rounded-xl">
-                                        {new Date(server.data_acquisto).toLocaleDateString('it-IT')}
+                                        {server.data_acquisto
+                                            ? new Date(server.data_acquisto).toLocaleDateString('it-IT')
+                                            : '—'}
                                     </p>
                                 )}
                             </div>
@@ -1087,17 +1109,19 @@ const ServerManagementPage = ({ serverId, identifier, onBack }) => {
                                 {isEditing ? (
                                     <input
                                         type="date"
-                                        value={server.data_scadenza}
+                                        value={
+                                            server.data_scadenza
+                                                ? new Date(server.data_scadenza).toISOString().split('T')[0]
+                                                : '—'
+                                        }
                                         onChange={(e) => handleInputChange('data_scadenza', e.target.value)}
                                         className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400"
                                     />
                                 ) : (
-                                    <p className={`py-3 font-medium px-4 rounded-xl ${
-                                        isExpiringSoon() 
-                                            ? 'text-amber-800 bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200' 
-                                            : 'text-slate-900 bg-slate-50'
-                                    }`}>
-                                        {new Date(server.data_scadenza).toLocaleDateString('it-IT')}
+                                    <p className="text-slate-900 py-3 font-medium bg-slate-50 px-4 rounded-xl">
+                                        {server.data_scadenza
+                                            ? new Date(server.data_scadenza).toLocaleDateString('it-IT')
+                                            : '—'}
                                     </p>
                                 )}
                             </div>
