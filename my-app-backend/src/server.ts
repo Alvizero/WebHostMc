@@ -2,7 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from "cors";
 import bcrypt from "bcrypt";
 import mysql from "mysql2/promise";
-import { RowDataPacket } from 'mysql2';
+import { ResultSetHeader, FieldPacket } from 'mysql2';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import dotenv from "dotenv";
 import axios from 'axios';
@@ -690,3 +690,100 @@ const updatePterodactylServerResources = async (pterodactylId: number, nome: str
     throw error;
   }
 };
+
+
+
+
+app.post("/api/servers", async (req, res) => {
+  try {
+    const { nome, tipo, proprietario_email, data_acquisto, data_scadenza, n_rinnovi, stato } = req.body;
+    
+    // Metodo 1: Type assertion (più semplice)
+    const [result] = await pool.query(
+      "INSERT INTO server (nome, tipo, proprietario_email, data_acquisto, data_scadenza, n_rinnovi, stato) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [nome, tipo, proprietario_email, data_acquisto, data_scadenza, n_rinnovi, stato]
+    ) as [ResultSetHeader, FieldPacket[]];
+    
+    res.status(201).json({ id: result.insertId, ...req.body });
+  } catch (error) {
+    console.error("Errore creazione server:", error);
+    res.status(500).json({ error: "Errore del server" });
+  }
+});
+
+
+app.get('/api/pterodactyl/next-allocation', async (req: Request, res: Response) => {
+  try {
+    const token = process.env.PTERODACTYL_API_KEY;
+    const baseUrl = process.env.PTERODACTYL_API_URL;
+
+    const response = await axios.get(`${baseUrl}/api/application/nodes`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/vnd.pterodactyl.v1+json'
+      }
+    });
+
+    const nodes = response.data.data;
+
+    for (const node of nodes) {
+      const nodeId = node.attributes.id;
+
+      const allocationsRes = await axios.get(`${baseUrl}/api/application/nodes/${nodeId}/allocations`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/vnd.pterodactyl.v1+json'
+        }
+      });
+
+      const freeAlloc = allocationsRes.data.data.find((alloc: any) => !alloc.attributes.assigned);
+
+      if (freeAlloc) {
+        return res.json({
+          ip: freeAlloc.attributes.ip,
+          port: freeAlloc.attributes.port,
+          full: `${freeAlloc.attributes.ip}:${freeAlloc.attributes.port}`,
+          node: node.attributes.name
+        });
+      }
+    }
+
+    return res.status(404).json({ error: 'Nessuna allocazione libera trovata.' });
+  } catch (error: any) {
+    console.error('Errore recupero allocazione:', error.message);
+    res.status(500).json({ error: 'Errore durante il recupero allocazione.' });
+  }
+});
+
+app.get('/api/pterodactyl/latest-docker-image', async (req: Request, res: Response) => {
+  try {
+    const token = process.env.PTERODACTYL_API_KEY;
+    const baseUrl = process.env.PTERODACTYL_API_URL;
+
+    const eggsResponse = await axios.get(`${baseUrl}/api/application/nests/1/eggs`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/vnd.pterodactyl.v1+json'
+      }
+    });
+
+    // Cerca l'ultima egg con image disponibile
+    const allEggs = eggsResponse.data.data;
+    for (const egg of allEggs.reverse()) {
+      if (egg.attributes.docker_image) {
+        return res.json({
+          image: egg.attributes.docker_image,
+          eggName: egg.attributes.name
+        });
+      }
+    }
+
+    return res.status(404).json({ error: 'Nessuna immagine Docker trovata.' });
+  } catch (error: any) {
+    console.error('Errore docker image:', error.message);
+    res.status(500).json({ error: 'Errore durante il recupero immagine Docker.' });
+  }
+});

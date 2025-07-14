@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { User, Server, Shield, Database, Calendar, Mail, Hash, Activity, Search, ArrowLeft, Settings, Power, Trash2, Save, AlertTriangle, ExternalLink, Loader2, Pause, Play, StopCircle } from 'lucide-react';
+import { X, User, Server, Shield, Database, Calendar, Mail, Hash, Activity, Search, ArrowLeft, Settings, Power, Trash2, Save, AlertTriangle, ExternalLink, Loader2, Pause, Play, StopCircle, Check } from 'lucide-react';
 
 // Componente per il form di login
 const LoginForm = ({ onLogin }) => {
@@ -1189,6 +1189,808 @@ const ServerManagementPage = ({ serverId, identifier, onBack }) => {
     );
 };
 
+
+
+
+
+const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
+    const [formData, setFormData] = useState({
+        nome: '',
+        tipo: '',
+        versione_egg: '',
+        versione_server: '',
+        proprietario_email: '',
+        data_scadenza: ''
+    });
+
+    const [versioniEgg, setVersioniEgg] = useState([]);
+    const [versioniServer, setVersioniServer] = useState([]);
+    const [filteredVersioniServer, setFilteredVersioniServer] = useState([]);
+    const [tipiOptions, setTipiOptions] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [loadingTipi, setLoadingTipi] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+    const [error, setError] = useState('');
+    const [tipiError, setTipiError] = useState('');
+    const [success, setSuccess] = useState('');
+    const [versionePersonalizzata, setVersionePersonalizzata] = useState(false);
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [allocationInfo, setAllocationInfo] = useState(null);
+    const [dockerImageInfo, setDockerImageInfo] = useState(null);
+    const [loadingPterodactylInfo, setLoadingPterodactylInfo] = useState(false);
+
+    // Carica dati al mount
+    useEffect(() => {
+        if (isOpen) {
+            fetchVersioniEgg();
+            fetchVersioniServer();
+            fetchTipiServer();
+            fetchPterodactylInfo();
+        }
+    }, [isOpen]);
+
+    // Filtra versioni server in base al tipo egg selezionato
+    useEffect(() => {
+        if (formData.versione_egg && versioniServer.length > 0) {
+            const eggSelected = versioniEgg.find(egg => egg.id === parseInt(formData.versione_egg));
+            if (eggSelected) {
+                const filtered = versioniServer.filter(version =>
+                    version.tipo.toLowerCase() === eggSelected.nome.toLowerCase()
+                );
+                setFilteredVersioniServer(filtered);
+                // Reset versione server se non più valida
+                if (formData.versione_server && !filtered.find(v => v.id === parseInt(formData.versione_server))) {
+                    setFormData(prev => ({ ...prev, versione_server: '' }));
+                }
+            }
+        } else {
+            setFilteredVersioniServer([]);
+        }
+    }, [formData.versione_egg, versioniEgg, versioniServer]);
+
+    const fetchTipiServer = async () => {
+        try {
+            setLoadingTipi(true);
+            const response = await fetch("http://localhost:3001/api/tipi-server");
+            if (!response.ok) {
+                throw new Error("Errore nel recupero dei tipi di server");
+            }
+            const data = await response.json();
+            const tipi = data.map((item) => item.nome);
+            setTipiOptions(tipi);
+            setTipiError('');
+        } catch (error) {
+            console.error("Errore:", error);
+            setTipiError("Errore durante il caricamento dei tipi server.");
+        } finally {
+            setLoadingTipi(false);
+        }
+    };
+
+    const fetchVersioniEgg = async () => {
+        try {
+            setIsLoading(true);
+            const response = await fetch('http://localhost:3001/api/versioni-server-egg');
+            if (!response.ok) throw new Error('Errore nel caricamento versioni egg');
+            const data = await response.json();
+            setVersioniEgg(data);
+        } catch (err) {
+            setError('Errore nel caricamento delle versioni egg');
+            console.error('Errore versioni egg:', err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const fetchVersioniServer = async () => {
+        try {
+            const response = await fetch('http://localhost:3001/api/versioni-server');
+            if (!response.ok) throw new Error('Errore nel caricamento versioni server');
+            const data = await response.json();
+            setVersioniServer(data);
+        } catch (err) {
+            setError('Errore nel caricamento delle versioni server');
+            console.error('Errore versioni server:', err);
+        }
+    };
+
+    const fetchPterodactylInfo = async () => {
+        try {
+            setLoadingPterodactylInfo(true);
+
+            // Fetch allocation info
+            const allocationResponse = await fetch('http://localhost:3001/api/pterodactyl/next-allocation');
+            if (allocationResponse.ok) {
+                const allocationData = await allocationResponse.json();
+                setAllocationInfo(allocationData);
+            }
+
+            // Fetch docker image info
+            const dockerResponse = await fetch('http://localhost:3001/api/pterodactyl/latest-docker-image');
+            if (dockerResponse.ok) {
+                const dockerData = await dockerResponse.json();
+                setDockerImageInfo(dockerData);
+            }
+
+        } catch (err) {
+            console.error('Errore nel caricamento info Pterodactyl:', err);
+            // Non mostrare errore critico, sono info opzionali
+        } finally {
+            setLoadingPterodactylInfo(false);
+        }
+    };
+
+    const handleInputChange = (field, value) => {
+        setFormData(prev => ({
+            ...prev,
+            [field]: value
+        }));
+
+        // Reset tipo quando cambia versione egg
+        if (field === 'versione_egg') {
+            setFormData(prev => ({
+                ...prev,
+                versione_server: ''
+            }));
+        }
+    };
+
+    const validateForm = () => {
+        if (!formData.nome.trim()) {
+            throw new Error('Nome server è obbligatorio');
+        }
+        if (!formData.tipo) {
+            throw new Error('Tipo server è obbligatorio');
+        }
+        if (!formData.proprietario_email.trim()) {
+            throw new Error('Email proprietario è obbligatoria');
+        }
+        if (!formData.data_scadenza) {
+            throw new Error('Data scadenza è obbligatoria');
+        }
+
+        // Validazione email
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(formData.proprietario_email)) {
+            throw new Error('Email non valida');
+        }
+
+        // Validazione data scadenza
+        const today = new Date();
+        const scadenza = new Date(formData.data_scadenza);
+        if (scadenza <= today) {
+            throw new Error('La data di scadenza deve essere futura');
+        }
+    };
+
+    const handleSubmit = async () => {
+        setError('');
+        setSuccess('');
+
+        try {
+            validateForm();
+            setShowConfirmModal(true);
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
+    const handleConfirmCreation = async () => {
+        setIsSaving(true);
+        setShowConfirmModal(false);
+
+        try {
+            const serverData = {
+                nome: formData.nome.trim(),
+                tipo: formData.tipo,
+                versione_egg: formData.versione_egg,
+                versione_server: formData.versione_server,
+                proprietario_email: formData.proprietario_email.trim(),
+                data_acquisto: new Date().toISOString().split('T')[0],
+                data_scadenza: formData.data_scadenza,
+                n_rinnovi: 0,
+                stato: 'disponibile',
+                // Aggiungi info da Pterodactyl se disponibili
+                ...(allocationInfo && { allocation_id: allocationInfo.id }),
+                ...(dockerImageInfo && { docker_image: dockerImageInfo.image })
+            };
+
+            const response = await fetch('http://localhost:3001/api/servers', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(serverData),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Errore nella creazione del server');
+            }
+
+            const newServer = await response.json();
+            setSuccess('Server creato con successo!');
+
+            // Chiama callback per aggiornare la lista
+            if (onServerCreated) {
+                onServerCreated(newServer);
+            }
+
+            // Chiudi modal dopo 1.5 secondi
+            setTimeout(() => {
+                onClose();
+                resetForm();
+            }, 1500);
+
+        } catch (err) {
+            setError(err.message);
+            console.error('Errore creazione server:', err);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const resetForm = () => {
+        setFormData({
+            nome: '',
+            tipo: '',
+            versione_egg: '',
+            versione_server: '',
+            proprietario_email: '',
+            data_scadenza: ''
+        });
+        setError('');
+        setSuccess('');
+        setTipiError('');
+        setVersionePersonalizzata(false);
+        setShowConfirmModal(false);
+        setAllocationInfo(null);
+        setDockerImageInfo(null);
+    };
+
+    const handleClose = () => {
+        if (!isSaving) {
+            onClose();
+            resetForm();
+        }
+    };
+
+    const toggleVersionePersonalizzata = () => {
+        setVersionePersonalizzata(!versionePersonalizzata);
+        if (!versionePersonalizzata) {
+            handleInputChange('versione_server', '');
+        }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <>
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+                <div className="bg-white rounded-2xl max-w-2xl w-full mx-4 shadow-2xl border border-white/20 max-h-[90vh] overflow-y-auto">
+                    {/* Header */}
+                    <div className="p-6 bg-gradient-to-r from-slate-50 to-blue-50 border-b border-slate-200 rounded-t-2xl">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                                <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg mr-4">
+                                    <Server className="h-6 w-6 text-white" />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+                                        Crea Nuovo Server
+                                    </h2>
+                                    <p className="text-slate-600 text-sm mt-1">Inserisci i dettagli per creare un nuovo server</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={handleClose}
+                                disabled={isSaving}
+                                className="p-2 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50"
+                            >
+                                <X className="h-5 w-5 text-slate-500" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-6">
+                        {/* Error Alert */}
+                        {error && (
+                            <div className="mb-6 bg-gradient-to-r from-red-50 to-rose-50 border border-red-200 rounded-xl p-4 shadow-sm">
+                                <div className="flex items-center">
+                                    <div className="p-2 bg-red-100 rounded-lg mr-3">
+                                        <AlertTriangle className="h-5 w-5 text-red-600" />
+                                    </div>
+                                    <span className="text-red-800 font-medium">{error}</span>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Success Alert */}
+                        {success && (
+                            <div className="mb-6 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4 shadow-sm">
+                                <div className="flex items-center">
+                                    <div className="p-2 bg-green-100 rounded-lg mr-3">
+                                        <Check className="h-5 w-5 text-green-600" />
+                                    </div>
+                                    <span className="text-green-800 font-medium">{success}</span>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Nome Server */}
+                                <div className="space-y-3">
+                                    <label className="block text-sm font-semibold text-slate-700">
+                                        Nome Server *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.nome}
+                                        onChange={(e) => handleInputChange('nome', e.target.value)}
+                                        className="w-full h-12 px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-400 text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400"
+                                        placeholder="Inserisci il nome del server..."
+                                        required
+                                    />
+                                </div>
+
+                                {/* Email Proprietario */}
+                                <div className="space-y-3">
+                                    <label className="block text-sm font-semibold text-slate-700">
+                                        <Mail className="h-4 w-4 inline mr-1" />
+                                        Email Proprietario *
+                                    </label>
+                                    <input
+                                        type="email"
+                                        value={formData.proprietario_email}
+                                        onChange={(e) => handleInputChange('proprietario_email', e.target.value)}
+                                        className="w-full h-12 px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-400 text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400"
+                                        placeholder="mario@example.com"
+                                        required
+                                    />
+                                </div>
+
+                                {/* Tipo Server */}
+                                <div className="space-y-3">
+                                    <label className="block text-sm font-semibold text-slate-700">
+                                        Tipo Server *
+                                    </label>
+                                    {loadingTipi ? (
+                                        <select disabled className="w-full h-12 px-4 py-3 border border-slate-300 rounded-xl bg-slate-100">
+                                            <option>Caricamento...</option>
+                                        </select>
+                                    ) : tipiError ? (
+                                        <div className="text-red-600 font-medium p-3 bg-red-50 rounded-xl border border-red-200">
+                                            {tipiError}
+                                        </div>
+                                    ) : (
+                                        <select
+                                            value={formData.tipo}
+                                            onChange={(e) => handleInputChange('tipo', e.target.value)}
+                                            className="w-full h-12 px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400"
+                                            required
+                                        >
+                                            <option value="">Seleziona tipo server...</option>
+                                            {tipiOptions.map((tipo) => (
+                                                <option key={tipo} value={tipo}>
+                                                    {tipo.charAt(0).toUpperCase() + tipo.slice(1)}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    )}
+                                </div>
+
+                                {/* Data Scadenza */}
+                                <div className="space-y-3">
+                                    <label className="block text-sm font-semibold text-slate-700">
+                                        <Calendar className="h-4 w-4 inline mr-1" />
+                                        Data Scadenza *
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={formData.data_scadenza}
+                                        onChange={(e) => handleInputChange('data_scadenza', e.target.value)}
+                                        className="w-full h-12 px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400"
+                                        min={new Date().toISOString().split('T')[0]}
+                                        required
+                                    />
+                                </div>
+
+                                {/* Versione Egg */}
+                                <div className="space-y-3">
+                                    <label className="block text-sm font-semibold text-slate-700">
+                                        Versione Egg
+                                    </label>
+                                    <select
+                                        value={formData.versione_egg}
+                                        onChange={(e) => handleInputChange('versione_egg', e.target.value)}
+                                        className="w-full h-12 px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400"
+                                    >
+                                        <option value="">Seleziona versione egg...</option>
+                                        {versioniEgg.map((egg) => (
+                                            <option key={egg.id} value={egg.id}>
+                                                {egg.icona} {egg.nome} - {egg.descrizione}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Versione Server */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-sm font-semibold text-slate-700">
+                                            Versione Server
+                                        </label>
+                                        <div className="flex items-center space-x-2">
+                                            <span className="text-sm text-slate-600">Personalizzata</span>
+                                            <button
+                                                type="button"
+                                                onClick={toggleVersionePersonalizzata}
+                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${versionePersonalizzata ? 'bg-blue-600' : 'bg-gray-200'}`}
+                                            >
+                                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${versionePersonalizzata ? 'translate-x-6' : 'translate-x-1'}`} />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {versionePersonalizzata ? (
+                                        <input
+                                            type="text"
+                                            value={formData.versione_server}
+                                            onChange={(e) => handleInputChange('versione_server', e.target.value)}
+                                            placeholder="Inserisci versione personalizzata (es. 1.20.4, latest, snapshot)"
+                                            className="w-full h-12 px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-400 text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400"
+                                        />
+                                    ) : (
+                                        <select
+                                            value={formData.versione_server}
+                                            onChange={(e) => handleInputChange('versione_server', e.target.value)}
+                                            className="w-full h-12 px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400"
+                                            disabled={!formData.versione_egg || filteredVersioniServer.length === 0}
+                                        >
+                                            <option value="">
+                                                {!formData.versione_egg
+                                                    ? 'Prima seleziona una versione egg...'
+                                                    : 'Seleziona versione server...'}
+                                            </option>
+                                            {filteredVersioniServer.map((version) => (
+                                                <option key={version.valore} value={version.valore}>
+                                                    {version.nome}
+                                                    {version.ultima_versione && ' (Ultima versione)'}
+                                                    {version.popolare && ' (Popolare)'}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Info Box */}
+                            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
+                                <div className="flex items-start">
+                                    <div className="p-2 bg-blue-100 rounded-lg mr-3">
+                                        <Server className="h-5 w-5 text-blue-600" />
+                                    </div>
+                                    <div className="text-sm text-blue-800">
+                                        <p className="font-semibold mb-1">Informazioni automatiche:</p>
+                                        <ul className="space-y-1 text-blue-700">
+                                            <li>• Data acquisto: {new Date().toLocaleDateString('it-IT')}</li>
+                                            <li>• Nodo: {allocationInfo ? `${allocationInfo.node}` : 'Caricamento...'}</li>
+                                            <li>• Allocazione: {allocationInfo ? `${allocationInfo.ip}:${allocationInfo.port}` : 'Caricamento...'}</li>
+                                            <li>• Docker Image: {dockerImageInfo ? `${dockerImageInfo.image}` : 'Caricamento...'}</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Buttons */}
+                            <div className="flex justify-end space-x-3 pt-4 border-t border-slate-200">
+                                <button
+                                    type="button"
+                                    onClick={handleClose}
+                                    disabled={isSaving || isLoading}
+                                    className="px-6 py-3 text-slate-700 border border-slate-300 rounded-xl hover:bg-slate-50 transition-all duration-200 font-semibold disabled:opacity-50"
+                                >
+                                    Annulla
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleSubmit}
+                                    disabled={isSaving || isLoading}
+                                    className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 shadow-lg hover:shadow-xl transform hover:scale-105"
+                                >
+                                    {isLoading ? (
+                                        <Loader2 className="h-5 w-5 animate-spin" />
+                                    ) : (
+                                        <Save className="h-5 w-5" />
+                                    )}
+                                    <span className="font-semibold">
+                                        {isLoading ? 'Preparando...' : 'Crea Server'}
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Modal di Conferma */}
+            {showConfirmModal && (
+                <ConfirmModal
+                    isOpen={showConfirmModal}
+                    onClose={() => setShowConfirmModal(false)}
+                    onConfirm={handleConfirmCreation}
+                    isLoading={isSaving}
+                    serverData={formData}
+                />
+            )}
+        </>
+    );
+};
+
+// Componente modal di conferma
+const ConfirmModal = ({ isOpen, onClose, onConfirm, isLoading, serverData }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-60">
+            <div className="bg-white rounded-2xl max-w-md w-full mx-4 shadow-2xl">
+                <div className="p-6">
+                    <h3 className="text-lg font-semibold text-slate-800 mb-4">
+                        Conferma Creazione Server
+                    </h3>
+                    <p className="text-slate-600 mb-6">
+                        Sei sicuro di voler creare il server "{serverData.nome}"?
+                    </p>
+                    <div className="flex justify-end space-x-3">
+                        <button
+                            onClick={onClose}
+                            disabled={isLoading}
+                            className="px-4 py-2 text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+                        >
+                            Annulla
+                        </button>
+                        <button
+                            onClick={onConfirm}
+                            disabled={isLoading}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                        >
+                            {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                            {isLoading ? 'Creando...' : 'Conferma'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+
+
+// Componente principale
+const AdminPanel = () => {
+    const [user, setUser] = useState(null);
+    const [activeTab, setActiveTab] = useState('dashboard');
+    const [servers, setServers] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+
+    // Funzione per caricare i server dal database
+    const loadServers = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const token = localStorage.getItem('adminToken');
+            const response = await fetch('http://localhost:3001/api/admin/servers', {
+                method: 'GET',
+                headers: {
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setServers(data.servers || []);
+            } else if (response.status === 401) {
+                // Token scaduto o non valido
+                localStorage.removeItem('adminToken');
+                setUser(null);
+                setError('Sessione scaduta. Effettua nuovamente il login.');
+            } else {
+                const errorData = await response.json();
+                setError(errorData.message || 'Errore nel caricamento dei server');
+            }
+        } catch (err) {
+            console.error('Errore nel caricamento dei server:', err);
+            setError('Errore di connessione al server');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Verifica se l'utente è già loggato all'avvio
+    useEffect(() => {
+        const token = localStorage.getItem('adminToken');
+        if (token) {
+            // Verifica la validità del token
+            fetch('http://localhost:3001/api/auth/verify', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.valid && data.user && data.user.ruolo === 'admin') {
+                        setUser(data.user);
+                    } else {
+                        localStorage.removeItem('adminToken');
+                    }
+                })
+                .catch(() => {
+                    localStorage.removeItem('adminToken');
+                });
+        }
+    }, []);
+
+    // Carica i server quando l'utente è loggato
+    useEffect(() => {
+        if (user) {
+            loadServers();
+        }
+    }, [user]);
+
+    const handleLogin = (userData) => {
+        setUser(userData);
+        setError('');
+    };
+
+    const handleLogout = () => {
+        localStorage.removeItem('adminToken');
+        setUser(null);
+        setServers([]);
+        setActiveTab('dashboard');
+        setError('');
+    };
+
+    const handleRefreshServers = () => {
+        loadServers();
+    };
+
+    const handleCreateServer = () => {
+        setIsModalOpen(true);
+    };
+
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+    };
+
+    const handleServerCreated = () => {
+        handleRefreshServers(); // oppure logica custom
+        setIsModalOpen(false);
+    };
+
+    if (!user) {
+        return <LoginForm onLogin={handleLogin} />;
+    }
+
+    return (
+        <div className="min-h-screen bg-gray-100">
+            {/* Header */}
+            <header className="bg-white shadow-sm border-b border-gray-200">
+                <div className="max-w-[85rem] mx-auto px-6 sm:px-8 lg:px-0">
+                    <div className="flex justify-between items-center py-6">
+                        <div className="flex items-center">
+                            <Shield className="h-8 w-8 text-blue-600 mr-3" />
+                            <h1 className="text-2xl font-bold text-gray-900">Pannello Amministratore</h1>
+                        </div>
+                        <div className="flex items-center space-x-4">
+                            <div className="flex items-center text-sm text-gray-600">
+                                <User className="h-4 w-4 mr-2" />
+                                {user.email}
+                            </div>
+                            <button
+                                onClick={handleLogout}
+                                className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+                            >
+                                Logout
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            {/* Navigation */}
+            <nav className="bg-white shadow-sm">
+                <div className="max-w-[85rem] mx-auto px-6 sm:px-8 lg:px-0">
+                    <div className="flex space-x-8">
+                        <button
+                            onClick={() => setActiveTab('dashboard')}
+                            className={`py-4 px-2 border-b-2 font-medium text-sm ${activeTab === 'dashboard'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
+                        >
+                            <div className="flex items-center">
+                                <Database className="h-4 w-4 mr-2" />
+                                Dashboard Server
+                            </div>
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('users')}
+                            className={`py-4 px-2 border-b-2 font-medium text-sm ${activeTab === 'users'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
+                        >
+                            <div className="flex items-center">
+                                <User className="h-4 w-4 mr-2" />
+                                Gestione Utenti
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </nav>
+
+            {/* Content */}
+            <main className="max-w-[85rem] mx-auto py-6 sm:px-12 lg:px-0">
+                <div className="px-4 py-6 sm:px-0">
+                    {error && (
+                        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+                            <div className="flex">
+                                <div className="flex-shrink-0">
+                                    <Calendar className="h-5 w-5 text-red-400" />
+                                </div>
+                                <div className="ml-3">
+                                    <p className="text-sm text-red-700">{error}</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'dashboard' && (
+                        <ServerDashboard
+                            servers={servers}
+                            loading={loading}
+                            onRefresh={handleRefreshServers}
+                            onCreateServer={handleCreateServer}
+                        />
+                    )}
+
+                    {isModalOpen && (
+                        <CreateServerModal
+                            isOpen={isModalOpen}
+                            onClose={handleCloseModal}
+                            onServerCreated={handleServerCreated}
+                        />
+                    )}
+
+                    {activeTab === 'users' && (
+                        <div className="bg-white rounded-xl shadow-lg p-6">
+                            <h2 className="text-xl font-semibold text-gray-900 mb-4">Gestione Utenti</h2>
+                            <p className="text-gray-600">
+                                Funzionalità in sviluppo. Qui sarà possibile gestire gli utenti del sistema.
+                            </p>
+                        </div>
+                    )}
+                </div>
+            </main>
+        </div>
+    );
+};
+
+
+
+
+
+
+
+
 // Componente per la gestione del singolo utente
 const UserManagement = ({ user, onBack, onUpdate, onDelete, onResetPassword, servers }) => {
     const [formData, setFormData] = useState({
@@ -1584,200 +2386,10 @@ const UserDashboard = ({ users, servers, onRefresh, loading: usersLoading, onCre
     );
 };
 
-// Componente principale
-const AdminPanel = () => {
-    const [user, setUser] = useState(null);
-    const [activeTab, setActiveTab] = useState('dashboard');
-    const [servers, setServers] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
 
-    // Funzione per caricare i server dal database
-    const loadServers = async () => {
-        setLoading(true);
-        setError('');
-        try {
-            const token = localStorage.getItem('adminToken');
-            const response = await fetch('http://localhost:3001/api/admin/servers', {
-                method: 'GET',
-                headers: {
-                    'Authorization': token ? `Bearer ${token}` : '',
-                    'Content-Type': 'application/json',
-                },
-            });
 
-            if (response.ok) {
-                const data = await response.json();
-                setServers(data.servers || []);
-            } else if (response.status === 401) {
-                // Token scaduto o non valido
-                localStorage.removeItem('adminToken');
-                setUser(null);
-                setError('Sessione scaduta. Effettua nuovamente il login.');
-            } else {
-                const errorData = await response.json();
-                setError(errorData.message || 'Errore nel caricamento dei server');
-            }
-        } catch (err) {
-            console.error('Errore nel caricamento dei server:', err);
-            setError('Errore di connessione al server');
-        } finally {
-            setLoading(false);
-        }
-    };
 
-    // Verifica se l'utente è già loggato all'avvio
-    useEffect(() => {
-        const token = localStorage.getItem('adminToken');
-        if (token) {
-            // Verifica la validità del token
-            fetch('http://localhost:3001/api/auth/verify', {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                },
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.valid && data.user && data.user.ruolo === 'admin') {
-                        setUser(data.user);
-                    } else {
-                        localStorage.removeItem('adminToken');
-                    }
-                })
-                .catch(() => {
-                    localStorage.removeItem('adminToken');
-                });
-        }
-    }, []);
 
-    // Carica i server quando l'utente è loggato
-    useEffect(() => {
-        if (user) {
-            loadServers();
-        }
-    }, [user]);
 
-    const handleLogin = (userData) => {
-        setUser(userData);
-        setError('');
-    };
-
-    const handleLogout = () => {
-        localStorage.removeItem('adminToken');
-        setUser(null);
-        setServers([]);
-        setActiveTab('dashboard');
-        setError('');
-    };
-
-    const handleRefreshServers = () => {
-        loadServers();
-    };
-
-    const handleCreateServer = () => {
-        alert('Funzionalità di creazione server in sviluppo');
-    };
-
-    if (!user) {
-        return <LoginForm onLogin={handleLogin} />;
-    }
-
-    return (
-        <div className="min-h-screen bg-gray-100">
-            {/* Header */}
-            <header className="bg-white shadow-sm border-b border-gray-200">
-                <div className="max-w-[85rem] mx-auto px-6 sm:px-8 lg:px-0">
-                    <div className="flex justify-between items-center py-6">
-                        <div className="flex items-center">
-                            <Shield className="h-8 w-8 text-blue-600 mr-3" />
-                            <h1 className="text-2xl font-bold text-gray-900">Pannello Amministratore</h1>
-                        </div>
-                        <div className="flex items-center space-x-4">
-                            <div className="flex items-center text-sm text-gray-600">
-                                <User className="h-4 w-4 mr-2" />
-                                {user.email}
-                            </div>
-                            <button
-                                onClick={handleLogout}
-                                className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
-                            >
-                                Logout
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            {/* Navigation */}
-            <nav className="bg-white shadow-sm">
-                <div className="max-w-[85rem] mx-auto px-6 sm:px-8 lg:px-0">
-                    <div className="flex space-x-8">
-                        <button
-                            onClick={() => setActiveTab('dashboard')}
-                            className={`py-4 px-2 border-b-2 font-medium text-sm ${activeTab === 'dashboard'
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                }`}
-                        >
-                            <div className="flex items-center">
-                                <Database className="h-4 w-4 mr-2" />
-                                Dashboard Server
-                            </div>
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('users')}
-                            className={`py-4 px-2 border-b-2 font-medium text-sm ${activeTab === 'users'
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                }`}
-                        >
-                            <div className="flex items-center">
-                                <User className="h-4 w-4 mr-2" />
-                                Gestione Utenti
-                            </div>
-                        </button>
-                    </div>
-                </div>
-            </nav>
-
-            {/* Content */}
-            <main className="max-w-[85rem] mx-auto py-6 sm:px-12 lg:px-0">
-                <div className="px-4 py-6 sm:px-0">
-                    {error && (
-                        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-                            <div className="flex">
-                                <div className="flex-shrink-0">
-                                    <Calendar className="h-5 w-5 text-red-400" />
-                                </div>
-                                <div className="ml-3">
-                                    <p className="text-sm text-red-700">{error}</p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'dashboard' && (
-                        <ServerDashboard
-                            servers={servers}
-                            onRefresh={handleRefreshServers}
-                            onCreateServer={handleCreateServer}
-                            loading={loading}
-                        />
-                    )}
-
-                    {activeTab === 'users' && (
-                        <div className="bg-white rounded-xl shadow-lg p-6">
-                            <h2 className="text-xl font-semibold text-gray-900 mb-4">Gestione Utenti</h2>
-                            <p className="text-gray-600">
-                                Funzionalità in sviluppo. Qui sarà possibile gestire gli utenti del sistema.
-                            </p>
-                        </div>
-                    )}
-                </div>
-            </main>
-        </div>
-    );
-};
 
 export default AdminPanel;
