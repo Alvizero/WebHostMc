@@ -195,7 +195,7 @@ const ServerDashboard = ({ servers, onRefresh, loading: serversLoading, onCreate
         return (
             <ServerManagementPage
                 serverId={selectedServer?.id}
-                identifier={selectedServer?.identifier}
+                uuidShort={selectedServer?.uuidShort}
                 onBack={handleBackToDashboard}
             />
         );
@@ -476,7 +476,7 @@ const ServerDashboard = ({ servers, onRefresh, loading: serversLoading, onCreate
     );
 };
 
-const ServerManagementPage = ({ serverId, identifier, onBack }) => {
+const ServerManagementPage = ({ serverId, uuidShort, onBack }) => {
     const [server, setServer] = useState(null);
     const [originalServer, setOriginalServer] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -792,7 +792,7 @@ const ServerManagementPage = ({ serverId, identifier, onBack }) => {
                             <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
                                 Gestione Server
                             </h1>
-                            <p className="text-slate-600 mt-1 font-medium">ID: {serverId}, Pterodactyl ID: {identifier}</p>
+                            <p className="text-slate-600 mt-1 font-medium">ID: {serverId}, Pterodactyl UUID: {uuidShort}</p>
                         </div>
                     </div>
                 </div>
@@ -876,61 +876,6 @@ const ServerManagementPage = ({ serverId, identifier, onBack }) => {
                         </div>
                     </div>
                 </div>
-
-                {/* Pterodactyl Details */}
-                {server.pterodactyl_id && (
-                    <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 mb-8 overflow-hidden">
-                        <div className="p-6 bg-gradient-to-r from-slate-50 to-blue-50 border-b border-slate-200">
-                            <div className="flex items-center justify-between">
-                                <h2 className="text-xl font-bold text-slate-800">Pterodactyl Panel</h2>
-                                <div className="flex gap-3">
-                                    <button
-                                        onClick={() => setShowPterodactylDetails(!showPterodactylDetails)}
-                                        className="text-blue-600 hover:text-blue-800 transition-colors font-semibold px-4 py-2 rounded-lg hover:bg-blue-50"
-                                    >
-                                        {showPterodactylDetails ? 'Nascondi' : 'Mostra'} Dettagli
-                                    </button>
-                                    {pterodactylDetails?.admin_panel_url && (
-                                        <a
-                                            href={pterodactylDetails.admin_panel_url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="group flex items-center gap-2 text-blue-600 hover:text-blue-800 transition-colors font-semibold px-4 py-2 rounded-lg hover:bg-blue-50"
-                                        >
-                                            <ExternalLink className="h-4 w-4 group-hover:rotate-12 transition-transform" />
-                                            Apri Panel
-                                        </a>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        {showPterodactylDetails && pterodactylDetails && (
-                            <div className="p-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="p-4 bg-gradient-to-r from-slate-50 to-blue-50 rounded-lg">
-                                        <p className="text-sm font-semibold text-slate-600 mb-2">Pterodactyl ID</p>
-                                        <p className="text-slate-900 font-bold text-lg">{pterodactylDetails.pterodactyl.id}</p>
-                                    </div>
-                                    <div className="p-4 bg-gradient-to-r from-slate-50 to-blue-50 rounded-lg">
-                                        <p className="text-sm font-semibold text-slate-600 mb-2">Identifier</p>
-                                        <p className="text-slate-900 font-mono text-sm bg-white px-3 py-1 rounded border">
-                                            {pterodactylDetails.pterodactyl.identifier}
-                                        </p>
-                                    </div>
-                                    <div className="p-4 bg-gradient-to-r from-slate-50 to-blue-50 rounded-lg">
-                                        <p className="text-sm font-semibold text-slate-600 mb-2">Node ID</p>
-                                        <p className="text-slate-900 font-bold text-lg">{pterodactylDetails.pterodactyl.node}</p>
-                                    </div>
-                                    <div className="p-4 bg-gradient-to-r from-slate-50 to-blue-50 rounded-lg">
-                                        <p className="text-sm font-semibold text-slate-600 mb-2">Egg ID</p>
-                                        <p className="text-slate-900 font-bold text-lg">{pterodactylDetails.pterodactyl.egg}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
 
                 {/* Main Content */}
                 <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 overflow-hidden">
@@ -1189,10 +1134,6 @@ const ServerManagementPage = ({ serverId, identifier, onBack }) => {
     );
 };
 
-
-
-
-
 const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
     const [formData, setFormData] = useState({
         nome: '',
@@ -1346,9 +1287,9 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
         if (!formData.proprietario_email.trim()) {
             throw new Error('Email proprietario è obbligatoria');
         }
-        if (!formData.data_scadenza) {
-            throw new Error('Data scadenza è obbligatoria');
-        }
+        //    if (!formData.data_scadenza) {
+        //        throw new Error('Data scadenza è obbligatoria');
+        //    }
 
         // Validazione email
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1391,11 +1332,14 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
                 data_scadenza: formData.data_scadenza,
                 n_rinnovi: 0,
                 stato: 'disponibile',
+                // Aggiungi sempre la versione server dal form
+                versione_server: formData.versione_server,
                 // Aggiungi info da Pterodactyl se disponibili
                 ...(allocationInfo && { allocation_id: allocationInfo.id }),
                 ...(dockerImageInfo && { docker_image: dockerImageInfo.image })
             };
 
+            console.log("🎯 formData.versione_server:", formData.versione_server);
             console.log("Server data da inviare:", serverData);
 
             const response = await fetch('http://localhost:3001/api/servers', {
@@ -1526,7 +1470,7 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
                                 {/* Nome Server */}
                                 <div className="space-y-3">
                                     <label className="block text-sm font-semibold text-slate-700">
-                                        Nome Server *
+                                        Nome Server
                                     </label>
                                     <input
                                         type="text"
@@ -1542,7 +1486,7 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
                                 <div className="space-y-3">
                                     <label className="block text-sm font-semibold text-slate-700">
                                         <Mail className="h-4 w-4 inline mr-1" />
-                                        Email Proprietario *
+                                        Email Proprietario
                                     </label>
                                     <input
                                         type="email"
@@ -1557,7 +1501,7 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
                                 {/* Tipo Server */}
                                 <div className="space-y-3">
                                     <label className="block text-sm font-semibold text-slate-700">
-                                        Tipo Server *
+                                        Tipo Server
                                     </label>
                                     {loadingTipi ? (
                                         <select disabled className="w-full h-12 px-4 py-3 border border-slate-300 rounded-xl bg-slate-100">
@@ -1588,7 +1532,7 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
                                 <div className="space-y-3">
                                     <label className="block text-sm font-semibold text-slate-700">
                                         <Calendar className="h-4 w-4 inline mr-1" />
-                                        Data Scadenza *
+                                        Data Scadenza
                                     </label>
                                     <input
                                         type="date"
@@ -1654,16 +1598,21 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
                                         >
                                             <option value="">
                                                 {!formData.versione_egg
-                                                    ? 'Prima seleziona una versione egg...'
+                                                    ? 'Seleziona prima il tipo di egg...'
                                                     : 'Seleziona versione server...'}
                                             </option>
-                                            {filteredVersioniServer.map((version) => (
-                                                <option key={version.id} value={version.versione}>
-                                                    {version.versione}
-                                                    {version.ultima_versione && ' (Ultima versione)'}
-                                                    {version.popolare && ' (Popolare)'}
-                                                </option>
-                                            ))}
+                                            {filteredVersioniServer.map((version) => {
+                                                let label = version.versione;
+
+                                                if (version.ultima_versione) label += ' (Ultima versione)';
+                                                if (version.popolare) label += ' (Popolare)';
+
+                                                return (
+                                                    <option key={version.id} value={version.versione}>
+                                                        {label}
+                                                    </option>
+                                                );
+                                            })}
                                         </select>
                                     )}
                                 </div>
@@ -1768,13 +1717,6 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, isLoading, serverData }) => 
         </div>
     );
 };
-
-
-
-
-
-
-
 
 // Componente principale
 const AdminPanel = () => {

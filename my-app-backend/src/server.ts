@@ -292,7 +292,7 @@ app.get('/api/admin/servers', authenticateAdmin, async (req: Request, res: Respo
         s.n_rinnovi,
         s.stato,
         s.pterodactyl_id,
-        s.identifier,
+        s.uuidShort,
         u.nome as proprietario_nome,
         u.cognome as proprietario_cognome
       FROM server s
@@ -703,9 +703,23 @@ const updatePterodactylServerResources = async (pterodactylId: number, nome: str
 
 app.post("/api/servers", async (req, res) => {
   try {
-    const { nome, tipo, proprietario_email, data_acquisto, data_scadenza, n_rinnovi, stato, allocation_id, docker_image } = req.body;
+    const {
+      nome,
+      tipo,
+      proprietario_email,
+      data_acquisto,
+      data_scadenza,
+      n_rinnovi,
+      stato,
+      allocation_id,
+      docker_image,
+      versione_server  // Cambia da vanilla_version a versione_server
+    } = req.body;
 
     console.log("Allocation ID ricevuto:", allocation_id);
+    console.log("Docker image ricevuta:", docker_image);
+    console.log("Versione server ricevuta:", versione_server);
+    console.log("Tutti i dati ricevuti:", req.body);
 
     // Recupera le specifiche del tipo di server dal database
     const [tipoRows] = await pool.query('SELECT cpu_cores, ram_gb, storage_gb FROM tipi_server WHERE nome = ?', [tipo]);
@@ -737,16 +751,16 @@ app.post("/api/servers", async (req, res) => {
       }
     };
 
-    // Payload per Pterodactyl (puoi personalizzarlo in base ai dati ricevuti)
+    // Payload per Pterodactyl - usa i valori dal frontend
     const pterodactylPayload = {
-      name: nome, // Usa il nome dal tuo database
-      user: process.env.PTERODACTYL_DEFAULT_USER_ID, // ID utente in Pterodactyl
-      egg: 4, // ID dell'egg
-      docker_image: docker_image,
+      name: nome,
+      user: process.env.PTERODACTYL_DEFAULT_USER_ID,
+      egg: 4,
+      docker_image: docker_image, // Ora viene dal frontend
       startup: "java -Xms128M -XX:MaxRAMPercentage=95.0 -jar {{SERVER_JARFILE}}",
       environment: {
         SERVER_JARFILE: "server.jar",
-        VANILLA_VERSION: "1.21.4"
+        VANILLA_VERSION: versione_server || "1.21.4" // Usa versione_server invece di vanilla_version
       },
       limits: {
         memory: ram_gb * 1024,
@@ -764,6 +778,8 @@ app.post("/api/servers", async (req, res) => {
         default: allocation_id
       }
     };
+
+    console.log("🚀 Payload inviato a Pterodactyl:", JSON.stringify(pterodactylPayload, null, 2));
 
     // Prima inserisci nel database locale
     const [result] = await pool.query(
@@ -787,17 +803,18 @@ app.post("/api/servers", async (req, res) => {
     const pterodactylData = await pterodactylResponse.json();
     console.log("Server creato in Pterodactyl:", pterodactylData);
 
-    // Opzionale: aggiorna il database con l'ID del server Pterodactyl
+    // Opzionale: aggiorna il database con l'ID del server Pterodactyl e l'identifier
     if (pterodactylData.attributes && pterodactylData.attributes.id) {
       await pool.query(
-        "UPDATE server SET pterodactyl_id = ? WHERE id = ?",
-        [pterodactylData.attributes.id, result.insertId]
+        "UPDATE server SET pterodactyl_id = ?, uuidShort = ? WHERE id = ?",
+        [pterodactylData.attributes.id, pterodactylData.attributes.identifier, result.insertId]
       );
     }
 
     res.status(201).json({
       id: result.insertId,
       pterodactyl_id: pterodactylData.attributes?.id,
+      uuidShort: pterodactylData.attributes?.identifier,
       ...req.body
     });
 
