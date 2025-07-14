@@ -137,7 +137,17 @@ app.get("/api/versioni-server-egg", async (req, res) => {
 
 app.get("/api/versioni-server", async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT * FROM versioni_server");
+    const [rows] = await pool.query(`
+      SELECT 
+        v.id,
+        v.tipo_id,
+        v.versione,
+        v.ultima_versione,
+        v.popolare,
+        e.nome AS tipo_nome
+      FROM versioni_server2 v
+      JOIN versioni_server_egg e ON v.tipo_id = e.id
+    `);
     res.json(rows);
   } catch (error) {
     console.error("Errore durante la query versioni_server2:", error);
@@ -374,8 +384,8 @@ app.put('/api/admin/servers/:serverId', authenticateAdmin, async (req: Request, 
       try {
         //await updatePterodactylServerResources(pterodactylId, nome, cpu_cores, ram_gb, storage_gb, "attivo", data_scadenza);
         await updatePterodactylServerResources(pterodactylId, nome, cpu_cores, ram_gb, storage_gb, stato);
-     //   await new Promise(resolve => setTimeout(resolve, 2000)); // 2 secondi
-     //   await updatePterodactylServerExpiration(pterodactylId, data_scadenza);
+        //   await new Promise(resolve => setTimeout(resolve, 2000)); // 2 secondi
+        //   await updatePterodactylServerExpiration(pterodactylId, data_scadenza);
 
 
         console.log(`✅ Server ${pterodactylId} aggiornato completamente su Pterodactyl`);
@@ -509,7 +519,7 @@ const updatePterodactylServerExpiration = async (pterodactylId: number, dataScad
     try {
       // Aggiorna direttamente il database con la data formattata
       const [result] = await pterodactylPool.query(
-        'UPDATE servers SET exp_date = ? WHERE id = ?', 
+        'UPDATE servers SET exp_date = ? WHERE id = ?',
         [formattedDate, pterodactylId]
       );
 
@@ -691,20 +701,106 @@ const updatePterodactylServerResources = async (pterodactylId: number, nome: str
   }
 };
 
-
-
-
 app.post("/api/servers", async (req, res) => {
   try {
-    const { nome, tipo, proprietario_email, data_acquisto, data_scadenza, n_rinnovi, stato } = req.body;
-    
-    // Metodo 1: Type assertion (più semplice)
+    const { nome, tipo, proprietario_email, data_acquisto, data_scadenza, n_rinnovi, stato, allocation_id, docker_image } = req.body;
+
+    console.log("Allocation ID ricevuto:", allocation_id);
+
+    // Recupera le specifiche del tipo di server dal database
+    const [tipoRows] = await pool.query('SELECT cpu_cores, ram_gb, storage_gb FROM tipi_server WHERE nome = ?', [tipo]);
+    const tipoData = tipoRows as any[];
+
+    if (tipoData.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tipo di server non valido'
+      });
+    }
+
+    const { cpu_cores, ram_gb, storage_gb } = tipoData[0];
+
+    console.log(`📊 Specifiche server tipo "${tipo}":`, {
+      cpu_cores,
+      ram_gb,
+      storage_gb
+    });
+
+    // Configurazione per la chiamata all'API Pterodactyl
+    const pterodactylConfig = {
+      url: "http://192.168.1.56/api/application/servers",
+      token: "ptla_3Q6XeKhYeB0DgFubxyznuvwQpmtUoIuALpZwQqMrFmx",
+      headers: {
+        "Authorization": "Bearer ptla_3Q6XeKhYeB0DgFubxyznuvwQpmtUoIuALpZwQqMrFmx",
+        "Content-Type": "application/json",
+        "Accept": "application/vnd.pterodactyl.v1+json"
+      }
+    };
+
+    // Payload per Pterodactyl (puoi personalizzarlo in base ai dati ricevuti)
+    const pterodactylPayload = {
+      name: nome, // Usa il nome dal tuo database
+      user: process.env.PTERODACTYL_DEFAULT_USER_ID, // ID utente in Pterodactyl
+      egg: 4, // ID dell'egg
+      docker_image: docker_image,
+      startup: "java -Xms128M -XX:MaxRAMPercentage=95.0 -jar {{SERVER_JARFILE}}",
+      environment: {
+        SERVER_JARFILE: "server.jar",
+        VANILLA_VERSION: "1.21.4"
+      },
+      limits: {
+        memory: ram_gb * 1024,
+        swap: 0,
+        disk: storage_gb * 1024,
+        io: 500,
+        cpu: cpu_cores * 100
+      },
+      feature_limits: {
+        databases: 0,
+        allocations: 0,
+        backups: 3
+      },
+      allocation: {
+        default: allocation_id
+      }
+    };
+
+    // Prima inserisci nel database locale
     const [result] = await pool.query(
       "INSERT INTO server (nome, tipo, proprietario_email, data_acquisto, data_scadenza, n_rinnovi, stato) VALUES (?, ?, ?, ?, ?, ?, ?)",
       [nome, tipo, proprietario_email, data_acquisto, data_scadenza, n_rinnovi, stato]
     ) as [ResultSetHeader, FieldPacket[]];
-    
-    res.status(201).json({ id: result.insertId, ...req.body });
+
+    // Poi crea il server in Pterodactyl
+    const pterodactylResponse = await fetch(pterodactylConfig.url, {
+      method: 'POST',
+      headers: pterodactylConfig.headers,
+      body: JSON.stringify(pterodactylPayload)
+    });
+
+    if (!pterodactylResponse.ok) {
+      const errorData = await pterodactylResponse.text();
+      console.error("Errore Pterodactyl:", errorData);
+      throw new Error(`Errore Pterodactyl: ${pterodactylResponse.status}`);
+    }
+
+    const pterodactylData = await pterodactylResponse.json();
+    console.log("Server creato in Pterodactyl:", pterodactylData);
+
+    // Opzionale: aggiorna il database con l'ID del server Pterodactyl
+    if (pterodactylData.attributes && pterodactylData.attributes.id) {
+      await pool.query(
+        "UPDATE server SET pterodactyl_id = ? WHERE id = ?",
+        [pterodactylData.attributes.id, result.insertId]
+      );
+    }
+
+    res.status(201).json({
+      id: result.insertId,
+      pterodactyl_id: pterodactylData.attributes?.id,
+      ...req.body
+    });
+
   } catch (error) {
     console.error("Errore creazione server:", error);
     res.status(500).json({ error: "Errore del server" });
@@ -742,6 +838,7 @@ app.get('/api/pterodactyl/next-allocation', async (req: Request, res: Response) 
 
       if (freeAlloc) {
         return res.json({
+          id: freeAlloc.attributes.id, // 👈 AGGIUNTO QUESTO!
           ip: freeAlloc.attributes.ip,
           port: freeAlloc.attributes.port,
           full: `${freeAlloc.attributes.ip}:${freeAlloc.attributes.port}`,

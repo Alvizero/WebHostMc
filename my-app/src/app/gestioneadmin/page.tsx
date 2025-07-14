@@ -1234,12 +1234,13 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
         if (formData.versione_egg && versioniServer.length > 0) {
             const eggSelected = versioniEgg.find(egg => egg.id === parseInt(formData.versione_egg));
             if (eggSelected) {
+                // Modifica per supportare il nuovo formato del backend
                 const filtered = versioniServer.filter(version =>
-                    version.tipo.toLowerCase() === eggSelected.nome.toLowerCase()
+                    version.tipo_nome.toLowerCase() === eggSelected.nome.toLowerCase()
                 );
                 setFilteredVersioniServer(filtered);
                 // Reset versione server se non più valida
-                if (formData.versione_server && !filtered.find(v => v.id === parseInt(formData.versione_server))) {
+                if (formData.versione_server && !filtered.find(v => v.versione === formData.versione_server)) {
                     setFormData(prev => ({ ...prev, versione_server: '' }));
                 }
             }
@@ -1394,6 +1395,8 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
                 ...(allocationInfo && { allocation_id: allocationInfo.id }),
                 ...(dockerImageInfo && { docker_image: dockerImageInfo.image })
             };
+
+            console.log("Server data da inviare:", serverData);
 
             const response = await fetch('http://localhost:3001/api/servers', {
                 method: 'POST',
@@ -1655,8 +1658,8 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
                                                     : 'Seleziona versione server...'}
                                             </option>
                                             {filteredVersioniServer.map((version) => (
-                                                <option key={version.valore} value={version.valore}>
-                                                    {version.nome}
+                                                <option key={version.id} value={version.versione}>
+                                                    {version.versione}
                                                     {version.ultima_versione && ' (Ultima versione)'}
                                                     {version.popolare && ' (Popolare)'}
                                                 </option>
@@ -1765,6 +1768,10 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, isLoading, serverData }) => 
         </div>
     );
 };
+
+
+
+
 
 
 
@@ -2385,11 +2392,5 @@ const UserDashboard = ({ users, servers, onRefresh, loading: usersLoading, onCre
         </div>
     );
 };
-
-
-
-
-
-
 
 export default AdminPanel;
