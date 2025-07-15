@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, User, Server, Shield, Database, Calendar, Mail, Hash, Activity, Search, ArrowLeft, Settings, Power, Trash2, Save, AlertTriangle, ExternalLink, Loader2, Pause, Play, StopCircle, Check } from 'lucide-react';
+import { X, User, Server, Shield, Database, Calendar, Mail, Hash, Activity, Search, ArrowLeft, Settings, Power, Trash2, Save, AlertTriangle, Plus, Loader2, Pause, Play, StopCircle, Check } from 'lucide-react';
 
 // Componente per il form di login
 const LoginForm = ({ onLogin }) => {
@@ -107,14 +107,33 @@ const LoginForm = ({ onLogin }) => {
 const ServerDashboard = ({ servers, onRefresh, loading: serversLoading, onCreateServer, onManageServer }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('tutti');
+    const [typeFilter, setTypeFilter] = useState('tutti'); // Nuovo filtro per tipo
     const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard' o 'management'
     const [selectedServer, setSelectedServer] = useState(null);
     const [serverData, setServerData] = useState(servers);
+    const [serverTypes, setServerTypes] = useState([]); // Stato per i tipi di server
 
     // Sincronizza i dati quando i server vengono aggiornati dall'esterno
     React.useEffect(() => {
         setServerData(servers);
     }, [servers]);
+
+    // Carica i tipi di server dal database
+    React.useEffect(() => {
+        const fetchServerTypes = async () => {
+            try {
+                const response = await fetch('http://localhost:3001/api/tipi-server');
+                if (response.ok) {
+                    const types = await response.json();
+                    setServerTypes(types);
+                }
+            } catch (error) {
+                console.error('Errore nel caricamento dei tipi server:', error);
+            }
+        };
+
+        fetchServerTypes();
+    }, []);
 
     const totalServers = servers.length;
     const availableServers = servers.filter(s => s.stato === 'disponibile').length;
@@ -133,19 +152,59 @@ const ServerDashboard = ({ servers, onRefresh, loading: serversLoading, onCreate
         return expiryDate > now && expiryDate <= thirtyDaysFromNow && s.stato === 'disponibile';
     }).length;
 
-    // Filtra i server
-    const filteredServers = servers.filter(server => {
-        const matchesSearch = server.nome.toLowerCase().includes(searchTerm.toLowerCase()) || server.proprietario_email.toLowerCase().includes(searchTerm.toLowerCase());
+    // Gestori per i click sui box delle statistiche
+    const handleStatBoxClick = (filterType) => {
+        // Reset search term quando si clicca su un box
+        setSearchTerm('');
+        setTypeFilter('tutti');
 
-        if (statusFilter === 'tutti') return matchesSearch;
-        if (statusFilter === 'disponibili') return matchesSearch && server.stato === 'disponibile';
-        if (statusFilter === 'scaduti') return matchesSearch && server.stato === 'scaduto';
-        if (statusFilter === 'in_scadenza') {
-            const expiryDate = new Date(server.data_scadenza);
-            return matchesSearch && expiryDate > now && expiryDate <= thirtyDaysFromNow && server.stato === 'disponibile';
+        switch (filterType) {
+            case 'tutti':
+                setStatusFilter('tutti');
+                break;
+            case 'disponibili':
+                setStatusFilter('disponibili');
+                break;
+            case 'scaduti':
+                setStatusFilter('scaduti');
+                break;
+            case 'sospesi':
+                setStatusFilter('sospesi');
+                break;
+            case 'in_scadenza':
+                setStatusFilter('in_scadenza');
+                break;
+            default:
+                setStatusFilter('tutti');
         }
-        if (statusFilter === 'sospesi') return matchesSearch && server.stato === 'sospeso';
-        return matchesSearch;
+    };
+
+    // Gestori per i click sui box dei tipi di server
+    const handleTypeBoxClick = (tipo) => {
+        setSearchTerm('');
+        setStatusFilter('tutti');
+        setTypeFilter(tipo);
+    };
+
+    // Filtra i server (aggiornato per includere il filtro tipo)
+    const filteredServers = servers.filter(server => {
+        const matchesSearch = server.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            server.proprietario_email.toLowerCase().includes(searchTerm.toLowerCase());
+
+        // Filtro per stato
+        let matchesStatus = true;
+        if (statusFilter === 'disponibili') matchesStatus = server.stato === 'disponibile';
+        else if (statusFilter === 'scaduti') matchesStatus = server.stato === 'scaduto';
+        else if (statusFilter === 'sospesi') matchesStatus = server.stato === 'sospeso';
+        else if (statusFilter === 'in_scadenza') {
+            const expiryDate = new Date(server.data_scadenza);
+            matchesStatus = expiryDate > now && expiryDate <= thirtyDaysFromNow && server.stato === 'disponibile';
+        }
+
+        // Filtro per tipo
+        const matchesType = typeFilter === 'tutti' || server.tipo === typeFilter;
+
+        return matchesSearch && matchesStatus && matchesType;
     }).sort((a, b) => a.id - b.id);
 
     // Gestione eventi
@@ -159,36 +218,6 @@ const ServerDashboard = ({ servers, onRefresh, loading: serversLoading, onCreate
         onRefresh();
         setSelectedServer(null);
     };
-
-    const handleSaveServer = (updatedServer) => {
-        setServerData(prevServers =>
-            prevServers.map(server =>
-                server.id === updatedServer.id ? updatedServer : server
-            )
-        );
-        // Qui potresti anche fare una chiamata API per salvare nel database
-        console.log('Server salvato:', updatedServer);
-    };
-
-    const handleDeleteServer = (serverId) => {
-        setServerData(prevServers =>
-            prevServers.filter(server => server.id !== serverId)
-        );
-        // Qui potresti anche fare una chiamata API per eliminare dal database
-        console.log('Server eliminato:', serverId);
-        handleBackToDashboard();
-    };
-
-    const handleToggleSuspend = (serverId, suspended) => {
-        setServerData(prevServers =>
-            prevServers.map(server =>
-                server.id === serverId
-                    ? { ...server, stato: suspended ? 'sospeso' : 'disponibile' }
-                    : server
-            )
-        );
-        console.log('Server sospeso/riattivato:', serverId, suspended);
-    }
 
     // Se siamo nella vista di gestione, mostra la pagina di gestione
     if (currentView === 'management') {
@@ -218,23 +247,28 @@ const ServerDashboard = ({ servers, onRefresh, loading: serversLoading, onCreate
                 <div className="flex items-center space-x-3">
                     <button
                         onClick={onCreateServer}
-                        className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                        className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center shadow-md hover:shadow-lg"
                     >
+                        <Plus className="h-4 w-4 mr-2 transition-transform duration-200 group-hover:rotate-90" />
                         Crea Server
                     </button>
                     <button
                         onClick={onRefresh}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center"
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center shadow-md hover:shadow-lg group"
                     >
-                        <Activity className="h-4 w-4 mr-2" />
+                        <Activity className="h-4 w-4 mr-2 transition-transform duration-200 group-hover:rotate-12" />
                         Aggiorna
                     </button>
                 </div>
             </div>
 
-            {/* Statistiche */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
+            {/* Statistiche - ORA CLICKABILI */}
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
+                <div
+                    onClick={() => handleStatBoxClick('tutti')}
+                    className={`bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500 cursor-pointer transition-all duration-200 hover:shadow-xl hover:scale-105 ${statusFilter === 'tutti' ? 'ring-2 ring-blue-500 bg-blue-50' : ''
+                        }`}
+                >
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm font-medium text-gray-600">Server Totali</p>
@@ -244,7 +278,11 @@ const ServerDashboard = ({ servers, onRefresh, loading: serversLoading, onCreate
                     </div>
                 </div>
 
-                <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
+                <div
+                    onClick={() => handleStatBoxClick('disponibili')}
+                    className={`bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500 cursor-pointer transition-all duration-200 hover:shadow-xl hover:scale-105 ${statusFilter === 'disponibili' ? 'ring-2 ring-green-500 bg-green-50' : ''
+                        }`}
+                >
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm font-medium text-gray-600">Disponibili</p>
@@ -254,7 +292,11 @@ const ServerDashboard = ({ servers, onRefresh, loading: serversLoading, onCreate
                     </div>
                 </div>
 
-                <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500">
+                <div
+                    onClick={() => handleStatBoxClick('in_scadenza')}
+                    className={`bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500 cursor-pointer transition-all duration-200 hover:shadow-xl hover:scale-105 ${statusFilter === 'in_scadenza' ? 'ring-2 ring-yellow-500 bg-yellow-50' : ''
+                        }`}
+                >
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm font-medium text-gray-600">In Scadenza</p>
@@ -265,7 +307,11 @@ const ServerDashboard = ({ servers, onRefresh, loading: serversLoading, onCreate
                     </div>
                 </div>
 
-                <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-red-500">
+                <div
+                    onClick={() => handleStatBoxClick('scaduti')}
+                    className={`bg-white rounded-xl shadow-lg p-6 border-l-4 border-red-500 cursor-pointer transition-all duration-200 hover:shadow-xl hover:scale-105 ${statusFilter === 'scaduti' ? 'ring-2 ring-red-500 bg-red-50' : ''
+                        }`}
+                >
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm font-medium text-gray-600">Scaduti</p>
@@ -275,44 +321,33 @@ const ServerDashboard = ({ servers, onRefresh, loading: serversLoading, onCreate
                     </div>
                 </div>
 
-                <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-gray-500">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm font-medium text-gray-600">Online</p>
-                            <p className="text-3xl font-bold text-gray-900">{suspendedServers}</p> {/*Da fare */}
-                        </div>
-                        <Play className="h-12 w-12 text-gray-500" />  {/*Cambiare icona */}
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-gray-500">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm font-medium text-gray-600">Offline</p>
-                            <p className="text-3xl font-bold text-gray-900">{suspendedServers}</p> {/*Da fare */}
-                        </div>
-                        <StopCircle className="h-12 w-12 text-gray-500" />  {/*Cambiare icona */}
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-gray-500">
+                <div
+                    onClick={() => handleStatBoxClick('sospesi')}
+                    className={`bg-white rounded-xl shadow-lg p-6 border-l-4 border-gray-500 cursor-pointer transition-all duration-200 hover:shadow-xl hover:scale-105 ${statusFilter === 'sospesi' ? 'ring-2 ring-gray-500 bg-gray-50' : ''
+                        }`}
+                >
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm font-medium text-gray-600">Sospesi</p>
                             <p className="text-3xl font-bold text-gray-900">{suspendedServers}</p>
                         </div>
-                        <Pause className="h-12 w-12 text-gray-500" />
+                        <StopCircle className="h-12 w-12 text-gray-500" />
                     </div>
                 </div>
             </div>
 
-            {/* Server per tipo */}
+            {/* Server per tipo - ORA CLICKABILI */}
             {Object.keys(serversByType).length > 0 && (
                 <div className="bg-white rounded-xl shadow-lg p-6">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">Server per Categoria</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                         {Object.entries(serversByType).map(([tipo, count]) => (
-                            <div key={tipo} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div
+                                key={tipo}
+                                onClick={() => handleTypeBoxClick(tipo)}
+                                className={`flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer transition-all duration-200 hover:bg-gray-100 hover:shadow-md ${typeFilter === tipo ? 'ring-2 ring-blue-500 bg-blue-50' : ''
+                                    }`}
+                            >
                                 <span className="font-medium text-gray-700 capitalize">{tipo}</span>
                                 <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">{count}</span>
                             </div>
@@ -340,6 +375,19 @@ const ServerDashboard = ({ servers, onRefresh, loading: serversLoading, onCreate
                                     className="h-11 w-64 pl-10 pr-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400 text-gray-700"
                                 />
                             </div>
+                            {/* Filtro per tipo di server */}
+                            <select
+                                value={typeFilter}
+                                onChange={(e) => setTypeFilter(e.target.value)}
+                                className="h-11 w-45 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700">
+                                <option value="tutti">Tutti i tipi</option>
+                                {serverTypes.map(type => (
+                                    <option key={type.id} value={type.nome}>
+                                        {type.nome}
+                                    </option>
+                                ))}
+                            </select>
+                            {/* Filtro per stato */}
                             <select
                                 value={statusFilter}
                                 onChange={(e) => setStatusFilter(e.target.value)}
@@ -455,7 +503,7 @@ const ServerDashboard = ({ servers, onRefresh, loading: serversLoading, onCreate
                                                         className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:from-blue-700 hover:to-blue-800 transition-all duration-200 inline-flex items-center gap-2 shadow-md hover:shadow-lg transform hover:scale-105"
                                                     >
                                                         <Server className="h-4 w-4" />
-                                                        Pannello Admin
+                                                        Gestisci
                                                     </a>
                                                 ) : (
                                                     <span className="bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-semibold inline-flex items-center gap-2 opacity-50">
@@ -852,7 +900,7 @@ const ServerManagementPage = ({ serverId, uuidShort, onBack }) => {
                                             className="group bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 inline-flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
                                         >
                                             <Server className="h-4 w-4 group-hover:rotate-12 transition-transform" />
-                                            Pannello Admin
+                                            Gestisci
                                         </a>
                                     ) : (
                                         <span className="bg-gradient-to-r from-slate-400 to-slate-500 text-white px-4 py-2 rounded-xl text-sm font-semibold inline-flex items-center gap-2 opacity-50">

@@ -145,7 +145,7 @@ app.get("/api/versioni-server", async (req, res) => {
         v.ultima_versione,
         v.popolare,
         e.nome AS tipo_nome
-      FROM versioni_server2 v
+      FROM versioni_server v
       JOIN versioni_server_egg e ON v.tipo_id = e.id
     `);
     res.json(rows);
