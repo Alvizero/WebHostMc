@@ -43,24 +43,32 @@ CREATE TABLE IF NOT EXISTS `server` (
   `tipo` varchar(100) NOT NULL,
   `proprietario_email` varchar(255) NOT NULL,
   `data_acquisto` datetime DEFAULT NULL,
-  `data_scadenza` datetime DEFAULT NULL,
+  `data_scadenza` date DEFAULT NULL,
   `n_rinnovi` int(11) DEFAULT 0,
+  `n_backup` int(11) DEFAULT 0,
   `stato` enum('disponibile','scaduto','sospeso') DEFAULT 'disponibile',
   `pterodactyl_id` varchar(255) DEFAULT NULL,
   `uuidShort` varchar(255) DEFAULT NULL,
-  `esecuzione` enum('online','offline') DEFAULT 'online',
   PRIMARY KEY (`id`),
   KEY `idx_server_proprietario` (`proprietario_email`),
   KEY `idx_server_stato` (`stato`),
   KEY `idx_server_scadenza` (`data_scadenza`),
   CONSTRAINT `server_ibfk_2` FOREIGN KEY (`proprietario_email`) REFERENCES `utenti` (`email`) ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- Dump dei dati della tabella webhostmc.server: ~3 rows (circa)
-INSERT INTO `server` (`id`, `nome`, `tipo`, `proprietario_email`, `data_acquisto`, `data_scadenza`, `n_rinnovi`, `stato`, `pterodactyl_id`, `uuidShort`, `esecuzione`) VALUES
-	(1, 'alvise servers', 'Server Base', 'alvisesacconato02@gmail.com', '2025-07-14 00:00:00', '2025-08-14 00:00:00', 0, 'disponibile', '1', NULL, 'online'),
-	(2, 'test', 'Server Base', 'alvisesacconato02@gmail.com', '2025-07-14 00:00:00', '2099-12-12 00:00:00', 0, 'disponibile', '2', NULL, 'online'),
-	(3, 'asas', 'Server Medio', 'alvisesacconato02@gmail.com', '2025-07-13 22:00:00', '2099-12-11 23:00:00', 0, 'disponibile', '3', '6a4ba6a7', 'online');
+-- Dump dei dati della tabella webhostmc.server: ~11 rows (circa)
+INSERT INTO `server` (`id`, `nome`, `tipo`, `proprietario_email`, `data_acquisto`, `data_scadenza`, `n_rinnovi`, `n_backup`, `stato`, `pterodactyl_id`, `uuidShort`) VALUES
+	(3, 'asas', 'Server Medio', 'alvisesacconato02@gmail.com', '2025-07-13 22:00:00', '0000-00-00', 0, 3, 'disponibile', '3', '6a4ba6a7'),
+	(4, 'Alvise Mc\'s', 'Server Base', 'alvisesacconato02@gmail.com', '2025-07-14 20:00:00', '2025-08-16', 0, 3, 'disponibile', '4', 'ef8fa531'),
+	(5, 'sasads', 'Server Base', 'alvisesacconato02@gmail.com', '2025-07-15 14:00:00', '2029-10-09', 0, 3, 'disponibile', '5', '055f5816'),
+	(6, 'test', 'Server Base', 'alvisesacconato02@gmail.com', '2025-07-16 00:00:00', '2099-12-12', 0, NULL, 'disponibile', NULL, NULL),
+	(7, 'afdf', 'Server Base', 'alvisesacconato02@gmail.com', '2025-07-16 00:00:00', '2099-12-12', 0, NULL, 'disponibile', NULL, NULL),
+	(8, 'afdf', 'Server Base', 'alvisesacconato02@gmail.com', '2025-07-16 00:00:00', '2099-12-12', 0, NULL, 'disponibile', NULL, NULL),
+	(9, 'alvisesacconato02@gmail.com', 'Server Base', 'alvisesacconato02@gmail.com', '2025-07-15 22:00:00', '2099-12-11', 0, 55, 'disponibile', NULL, NULL),
+	(10, 'sasa', 'Server Base', 'alvisesacconato02@gmail.com', '2025-07-16 00:00:00', '2099-12-12', 0, NULL, 'disponibile', NULL, NULL),
+	(11, 'sasa', 'Server Base', 'alvisesacconato02@gmail.com', '2025-07-16 00:00:00', '2099-12-12', 0, 3, 'disponibile', '6', '558e72ef'),
+	(12, 'alvisesacconato02@gmail.com', 'Server Base', 'alvisesacconato02@gmail.com', '2025-07-16 00:00:00', '2099-12-12', 0, 4, 'disponibile', '7', 'bf89409b'),
+	(13, '222', 'Server Base', 'alvisesacconato02@gmail.com', '2025-07-15 00:00:00', '2025-12-07', 0, 155, 'scaduto', '8', 'e22c1f39');
 
 -- Dump della struttura di tabella webhostmc.tipi_server
 CREATE TABLE IF NOT EXISTS `tipi_server` (
@@ -110,29 +118,17 @@ INSERT INTO `utenti` (`id`, `nome`, `cognome`, `username`, `email`, `password_ha
 -- Dump della struttura di tabella webhostmc.versioni_server
 CREATE TABLE IF NOT EXISTS `versioni_server` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `nome` varchar(100) NOT NULL,
-  `tipo` varchar(50) NOT NULL,
-  `ultima_versione` tinyint(1) DEFAULT 0,
-  `popolare` tinyint(1) DEFAULT 0,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- Dump dei dati della tabella webhostmc.versioni_server: ~0 rows (circa)
-
--- Dump della struttura di tabella webhostmc.versioni_server2
-CREATE TABLE IF NOT EXISTS `versioni_server2` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
   `tipo_id` int(11) NOT NULL,
   `versione` varchar(20) NOT NULL,
   `ultima_versione` tinyint(1) DEFAULT 0,
   `popolare` tinyint(1) DEFAULT 0,
   PRIMARY KEY (`id`),
   KEY `tipo_id` (`tipo_id`),
-  CONSTRAINT `versioni_server2_ibfk_1` FOREIGN KEY (`tipo_id`) REFERENCES `versioni_server_egg` (`id`)
+  CONSTRAINT `versioni_server_ibfk_1` FOREIGN KEY (`tipo_id`) REFERENCES `versioni_server_egg` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=25 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- Dump dei dati della tabella webhostmc.versioni_server2: ~24 rows (circa)
-INSERT INTO `versioni_server2` (`id`, `tipo_id`, `versione`, `ultima_versione`, `popolare`) VALUES
+-- Dump dei dati della tabella webhostmc.versioni_server: ~24 rows (circa)
+INSERT INTO `versioni_server` (`id`, `tipo_id`, `versione`, `ultima_versione`, `popolare`) VALUES
 	(1, 1, '1.21.7', 1, 0),
 	(2, 1, '1.21.6', 0, 0),
 	(3, 1, '1.21.5', 0, 0),

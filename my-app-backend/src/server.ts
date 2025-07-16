@@ -323,7 +323,7 @@ app.get('/api/admin/servers/:serverId', authenticateAdmin, async (req: Request, 
     const [rows] = await pool.query(`
       SELECT 
         s.id, s.nome, s.tipo, s.proprietario_email, s.data_acquisto, 
-        s.data_scadenza, s.n_rinnovi, s.stato, s.pterodactyl_id
+        s.data_scadenza, s.n_rinnovi, s.stato, s.pterodactyl_id, n_backup
       FROM server s 
       WHERE s.id = ?
     `, [serverId]);
@@ -345,7 +345,7 @@ app.get('/api/admin/servers/:serverId', authenticateAdmin, async (req: Request, 
 app.put('/api/admin/servers/:serverId', authenticateAdmin, async (req: Request, res: Response) => {
   try {
     const serverId = parseInt(req.params.serverId);
-    const { nome, tipo, proprietario_email, data_acquisto, data_scadenza, stato, n_rinnovi } = req.body || {};
+    const { nome, tipo, proprietario_email, data_acquisto, data_scadenza, stato, n_rinnovi, n_backup } = req.body || {};
 
     // Prima recupera il pterodactyl_id dal database
     const [serverRows] = await pool.query('SELECT pterodactyl_id FROM server WHERE id = ?', [serverId]);
@@ -371,9 +371,9 @@ app.put('/api/admin/servers/:serverId', authenticateAdmin, async (req: Request, 
     await pool.query(`
       UPDATE server 
       SET nome = ?, tipo = ?, proprietario_email = ?, data_acquisto = ?, 
-          data_scadenza = ?, stato = ?, n_rinnovi = ? 
+          data_scadenza = ?, stato = ?, n_rinnovi = ?, n_backup = ?
       WHERE id = ?
-    `, [nome, tipo, proprietario_email, data_acquisto, data_scadenza, stato, n_rinnovi, serverId]);
+    `, [nome, tipo, proprietario_email, data_acquisto, data_scadenza, stato, n_rinnovi, n_backup, serverId]);
 
     // Recupera il server aggiornato
     const [rows] = await pool.query('SELECT * FROM server WHERE id = ?', [serverId]);
@@ -383,9 +383,19 @@ app.put('/api/admin/servers/:serverId', authenticateAdmin, async (req: Request, 
     if (pterodactylId) {
       try {
         //await updatePterodactylServerResources(pterodactylId, nome, cpu_cores, ram_gb, storage_gb, "attivo", data_scadenza);
-        await updatePterodactylServerResources(pterodactylId, nome, cpu_cores, ram_gb, storage_gb, stato);
-        //   await new Promise(resolve => setTimeout(resolve, 2000)); // 2 secondi
+          await updatePterodactylServerResources(pterodactylId, nome, cpu_cores, ram_gb, storage_gb, stato, n_backup);
         //   await updatePterodactylServerExpiration(pterodactylId, data_scadenza);
+
+
+        // ✅ Aggiorna exp_date solo dopo la gestione della sospensione
+        if (data_scadenza) {
+          try {
+            await updatePterodactylServerExpiration(pterodactylId, data_scadenza);
+          } catch (expirationError: any) {
+            console.error('❌ Errore aggiornamento exp_date:', expirationError.message);
+          }
+        }
+
 
 
         console.log(`✅ Server ${pterodactylId} aggiornato completamente su Pterodactyl`);
@@ -417,17 +427,37 @@ app.put('/api/admin/servers/:serverId', authenticateAdmin, async (req: Request, 
   }
 });
 
-// Endpoint per eliminare un server
 app.delete('/api/admin/servers/:serverId', authenticateAdmin, async (req: Request, res: Response) => {
   try {
     const serverId = parseInt(req.params.serverId);
 
+    // 1) Recupera il pterodactyl_id dal DB (assumendo che tu lo abbia salvato)
+    const [rows] = await pool.query('SELECT pterodactyl_id FROM server WHERE id = ?', [serverId]);
+    if (!rows || (rows as any[]).length === 0) {
+      return res.status(404).json({ success: false, message: 'Server non trovato' });
+    }
+    const pteroServerId = (rows as any[])[0].pterodactyl_id;
+    if (!pteroServerId) {
+      return res.status(400).json({ success: false, message: 'ID Pterodactyl non configurato per questo server' });
+    }
+
+    // 2) Chiamata DELETE alle API di Pterodactyl per eliminare il server remoto
+    await axios.delete(`http://192.168.1.56/api/application/servers/${pteroServerId}`, {
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ptla_3Q6XeKhYeB0DgFubxyznuvwQpmtUoIuALpZwQqMrFmx'  // <-- metti qui la tua API key valida
+      }
+      // Non serve il cookie pterodactyl_session per questa API se usi API key
+    });
+
+    // 3) Cancella il server dal DB locale
     await pool.query('DELETE FROM server WHERE id = ?', [serverId]);
 
-    res.json({ success: true, message: 'Server eliminato con successo' });
-  } catch (error) {
-    console.error('Errore eliminazione server:', error);
-    res.status(500).json({ success: false, message: 'Errore nell\'eliminazione del server' });
+    res.json({ success: true, message: 'Server eliminato con successo, sia localmente che su Pterodactyl' });
+  } catch (error: any) {
+    console.error('Errore eliminazione server:', error.response?.data || error.message || error);
+    res.status(500).json({ success: false, message: 'Errore nell\'eliminazione del server', error: error.response?.data || error.message });
   }
 });
 
@@ -457,55 +487,9 @@ app.get('/api/server/stati', async (req, res) => {
   }
 });
 
-const updatePterodactylServerExpiration = async (pterodactylId: number, dataScadenza: string) => {
+const updatePterodactylServerExpiration = async (pterodactylId: number, dataScadenza?: string | null) => {
   try {
-    if (!dataScadenza) {
-      console.error('❌ Data scadenza non fornita');
-      return;
-    }
-
-    console.log(`📅 Data scadenza ricevuta: ${dataScadenza}`);
-
-    // Controllo se la data è valida
-    const isValidDate = (dateString: string) => {
-      const date = new Date(dateString);
-      return !isNaN(date.getTime());
-    };
-
-    if (!isValidDate(dataScadenza)) {
-      console.error('❌ Data scadenza non valida:', dataScadenza);
-      throw new Error(`Data scadenza non valida: ${dataScadenza}`);
-    }
-
-    // Converti la data nel formato corretto per MySQL (YYYY-MM-DD)
-    let formattedDate: string;
-
-    if (dataScadenza.includes('T')) {
-      // Se la data è in formato ISO (2029-02-07T22:00:00.000Z)
-      formattedDate = dataScadenza.split('T')[0];
-    } else if (dataScadenza.includes('/')) {
-      // Se la data è in formato DD/MM/YYYY
-      const parts = dataScadenza.split('/');
-      if (parts.length !== 3) {
-        throw new Error(`Formato data non valido: ${dataScadenza}`);
-      }
-      formattedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-    } else {
-      // Assumiamo che sia già in formato YYYY-MM-DD
-      formattedDate = dataScadenza;
-    }
-
-    console.log(`📅 Data originale: ${dataScadenza}`);
-    console.log(`📅 Data formattata per MySQL: ${formattedDate}`);
-
-    // Validazione finale del formato della data
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(formattedDate)) {
-      throw new Error(`Formato data finale non valido: ${formattedDate}`);
-    }
-
-    console.log(`📅 Aggiornamento data scadenza server Pterodactyl ID: ${pterodactylId}`);
-
-    // Connessione diretta al database di Pterodactyl
+    // Connessione al DB Pterodactyl
     const pterodactylPool = mysql.createPool({
       host: '192.168.1.56',
       user: 'alvise',
@@ -516,34 +500,58 @@ const updatePterodactylServerExpiration = async (pterodactylId: number, dataScad
       queueLimit: 0
     });
 
-    try {
-      // Aggiorna direttamente il database con la data formattata
-      const [result] = await pterodactylPool.query(
-        'UPDATE servers SET exp_date = ? WHERE id = ?',
-        [formattedDate, pterodactylId]
+    // Se data nulla o vuota, imposta exp_date a NULL
+    if (!dataScadenza || dataScadenza.trim() === '') {
+      await pterodactylPool.query(
+        'UPDATE servers SET exp_date = NULL WHERE id = ?',
+        [pterodactylId]
       );
-
-      // Verifica se l'aggiornamento ha avuto successo
-      if (result && typeof result === 'object' && 'affectedRows' in result) {
-        if (result.affectedRows === 0) {
-          console.warn(`⚠️ Nessun server trovato con ID: ${pterodactylId}`);
-        } else {
-          console.log(`✅ Data scadenza aggiornata nel database Pterodactyl: ${formattedDate}`);
-        }
-      }
-
-    } finally {
-      // Chiudi sempre la connessione nel blocco finally
+      console.log(`🗓️ Nessuna data fornita → exp_date settato a NULL per server ${pterodactylId}`);
       await pterodactylPool.end();
+      return;
     }
 
+    // Controlla se la data è valida
+    const parsedDate = new Date(dataScadenza);
+    if (isNaN(parsedDate.getTime())) {
+      throw new Error(`❌ Data scadenza non valida: ${dataScadenza}`);
+    }
+
+    // Formatta la data in YYYY-MM-DD
+    const formattedDate = parsedDate.toISOString().split('T')[0];
+
+    // Verifica se già è impostata la stessa data
+    const [existingRows] = await pterodactylPool.query(
+      'SELECT exp_date FROM servers WHERE id = ?',
+      [pterodactylId]
+    );
+
+    const currentExpDate = (existingRows as any[])[0]?.exp_date;
+    const currentFormatted = currentExpDate
+      ? new Date(currentExpDate).toISOString().split('T')[0]
+      : null;
+
+    if (currentFormatted === formattedDate) {
+      console.log(`🟡 Data scadenza già aggiornata: ${formattedDate}`);
+      await pterodactylPool.end();
+      return;
+    }
+
+    // Aggiorna la data di scadenza
+    await pterodactylPool.query(
+      'UPDATE servers SET exp_date = ? WHERE id = ?',
+      [formattedDate, pterodactylId]
+    );
+
+    console.log(`✅ Data scadenza aggiornata nel DB Pterodactyl: ${formattedDate}`);
+    await pterodactylPool.end();
   } catch (error: any) {
-    console.error('❌ Errore aggiornamento data scadenza DB:', error.message);
+    console.error('❌ Errore aggiornamento exp_date:', error.message);
     throw error;
   }
 };
 
-const updatePterodactylServerResources = async (pterodactylId: number, nome: string, cpu: number, ram: number, disk: number, stato: string) => {
+const updatePterodactylServerResources = async (pterodactylId: number, nome: string, cpu: number, ram: number, disk: number, stato: string, n_backup: number) => {
   try {
     console.log(`🔄 Aggiornamento risorse server Pterodactyl ID: ${pterodactylId}`);
 
@@ -675,7 +683,7 @@ const updatePterodactylServerResources = async (pterodactylId: number, nome: str
       feature_limits: {
         databases: existingFeatureLimits.databases || 5,
         allocations: existingFeatureLimits.allocations || 5,
-        backups: existingFeatureLimits.backups || 2
+        backups: n_backup
       }
     };
 
@@ -713,12 +721,10 @@ app.post("/api/servers", async (req, res) => {
       stato,
       allocation_id,
       docker_image,
-      versione_server  // Cambia da vanilla_version a versione_server
+      versione_server,  // Cambia da vanilla_version a versione_server
+      n_backup
     } = req.body;
 
-    console.log("Allocation ID ricevuto:", allocation_id);
-    console.log("Docker image ricevuta:", docker_image);
-    console.log("Versione server ricevuta:", versione_server);
     console.log("Tutti i dati ricevuti:", req.body);
 
     // Recupera le specifiche del tipo di server dal database
@@ -760,7 +766,7 @@ app.post("/api/servers", async (req, res) => {
       startup: "java -Xms128M -XX:MaxRAMPercentage=95.0 -jar {{SERVER_JARFILE}}",
       environment: {
         SERVER_JARFILE: "server.jar",
-        VANILLA_VERSION: versione_server || "1.21.4" // Usa versione_server invece di vanilla_version
+        VANILLA_VERSION: versione_server || "latset" // Usa versione_server invece di vanilla_version
       },
       limits: {
         memory: ram_gb * 1024,
@@ -772,7 +778,7 @@ app.post("/api/servers", async (req, res) => {
       feature_limits: {
         databases: 0,
         allocations: 0,
-        backups: 3
+        backups: n_backup
       },
       allocation: {
         default: allocation_id
@@ -823,7 +829,6 @@ app.post("/api/servers", async (req, res) => {
     res.status(500).json({ error: "Errore del server" });
   }
 });
-
 
 app.get('/api/pterodactyl/next-allocation', async (req: Request, res: Response) => {
   try {

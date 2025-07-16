@@ -219,17 +219,6 @@ const ServerDashboard = ({ servers, onRefresh, loading: serversLoading, onCreate
         setSelectedServer(null);
     };
 
-    // Se siamo nella vista di gestione, mostra la pagina di gestione
-    if (currentView === 'management') {
-        return (
-            <ServerManagementPage
-                serverId={selectedServer?.id}
-                uuidShort={selectedServer?.uuidShort}
-                onBack={handleBackToDashboard}
-            />
-        );
-    }
-
     if (serversLoading) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -339,7 +328,7 @@ const ServerDashboard = ({ servers, onRefresh, loading: serversLoading, onCreate
             {/* Server per tipo - ORA CLICKABILI */}
             {Object.keys(serversByType).length > 0 && (
                 <div className="bg-white rounded-xl shadow-lg p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Server per Categoria</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Server per Tipo</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                         {Object.entries(serversByType).map(([tipo, count]) => (
                             <div
@@ -520,6 +509,16 @@ const ServerDashboard = ({ servers, onRefresh, loading: serversLoading, onCreate
                     </div>
                 )}
             </div>
+
+            {currentView === 'management' && selectedServer && (
+                <div className="fixed inset-0 z-50">
+                    <ServerManagementPage
+                        serverId={selectedServer.id}
+                        uuidShort={selectedServer.uuidShort}
+                        onBack={handleBackToDashboard}
+                    />
+                </div>
+            )}
         </div>
     );
 };
@@ -631,7 +630,8 @@ const ServerManagementPage = ({ serverId, uuidShort, onBack }) => {
                     data_acquisto: server.data_acquisto,
                     data_scadenza: server.data_scadenza,
                     stato: server.stato,
-                    n_rinnovi: server.n_rinnovi || 0
+                    n_rinnovi: server.n_rinnovi || 0,
+                    n_backup: server.n_backup
                 })
             });
 
@@ -820,348 +820,402 @@ const ServerManagementPage = ({ serverId, uuidShort, onBack }) => {
 
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 py-8">
-            <div className="max-w-[80rem] mx-auto px-6 sm:px-8 lg:px-0">
-                {/* Header */}
-                <div className="mb-8">
-                    <button
-                        onClick={onBack}
-                        className="group flex items-center text-slate-600 hover:text-slate-900 mb-6 transition-all duration-200 hover:translate-x-1"
-                    >
-                        <ArrowLeft className="h-5 w-5 mr-2 group-hover:scale-110 transition-transform" />
-                        <span className="font-medium">Torna alla lista server</span>
-                    </button>
-
-                    <div className="flex items-center">
-                        <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg mr-4">
-                            <Server className="h-8 w-8 text-white" />
-                        </div>
-                        <div>
-                            <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
-                                Gestione Server
-                            </h1>
-                            <p className="text-slate-600 mt-1 font-medium">ID: {serverId}, Pterodactyl UUID: {uuidShort}</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Error Alert */}
-                {error && (
-                    <div className="mb-6 bg-gradient-to-r from-red-50 to-rose-50 border border-red-200 rounded-xl p-4 shadow-lg">
+        // Overlay di sfondo del modale
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50" onClick={onBack}>
+            {/* Contenuto del modale */}
+            <div
+                className="bg-white rounded-2xl max-w-[80rem] w-full max-h-[94vh] overflow-y-auto shadow-2xl border border-white/20"
+                onClick={(e) => e.stopPropagation()}
+            >
+                {/* Header del modale */}
+                <div className="sticky top-0 bg-white border-b border-slate-200 rounded-t-2xl p-6 z-10">
+                    <div className="flex items-center justify-between">
                         <div className="flex items-center">
-                            <div className="p-2 bg-red-100 rounded-lg mr-3">
-                                <AlertTriangle className="h-5 w-5 text-red-600" />
-                            </div>
-                            <span className="text-red-800 font-medium">{error}</span>
-                        </div>
-                    </div>
-                )}
-
-                {/* Status Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 p-6 hover:shadow-xl transition-all duration-300">
-                        <div className="flex items-center justify-between">
-                            <div className="w-full">
-                                <p className="text-sm font-semibold text-slate-600 mb-3">Stato Server</p>
-                                <div className="flex items-center flex-wrap gap-2">
-                                    <span
-                                        className={`px-4 py-2 rounded-full text-sm font-semibold shadow-sm ${server.stato === 'disponibile'
-                                            ? 'bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-800 border border-emerald-200'
-                                            : 'bg-gradient-to-r from-red-100 to-rose-100 text-red-800 border border-red-200'
-                                            }`}
-                                    >
-                                        {server.stato}
-                                    </span>
-                                    {server.sospeso && (
-                                        <span className="px-3 py-1 bg-gradient-to-r from-orange-100 to-amber-100 text-orange-800 rounded-full text-xs font-semibold border border-orange-200">
-                                            Sospeso
-                                        </span>
-                                    )}
-                                    {isExpiringSoon() && (
-                                        <span className="px-3 py-1 bg-gradient-to-r from-yellow-100 to-amber-100 text-yellow-800 rounded-full text-xs font-semibold border border-yellow-200">
-                                            In scadenza
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 p-6 hover:shadow-xl transition-all duration-300">
-                        <div className="flex items-center justify-between">
-                            <div className="w-full">
-                                <p className="text-sm font-semibold text-slate-600 mb-3">Azioni</p>
-                                <div className="mt-2">
-                                    {server.pterodactyl_id ? (
-                                        <a
-                                            href={`http://192.168.1.56/admin/servers/view/${server.pterodactyl_id}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="group bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 inline-flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
-                                        >
-                                            <Server className="h-4 w-4 group-hover:rotate-12 transition-transform" />
-                                            Gestisci
-                                        </a>
-                                    ) : (
-                                        <span className="bg-gradient-to-r from-slate-400 to-slate-500 text-white px-4 py-2 rounded-xl text-sm font-semibold inline-flex items-center gap-2 opacity-50">
-                                            <Server className="h-4 w-4" />
-                                            Non disponibile
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 p-6 hover:shadow-xl transition-all duration-300">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-semibold text-slate-600 mb-2">Rinnovi</p>
-                                <p className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                                    {server.n_rinnovi || 0}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Main Content */}
-                <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 overflow-hidden">
-                    <div className="p-6 bg-gradient-to-r from-slate-50 to-blue-50 border-b border-slate-200">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-xl font-bold text-slate-800">Informazioni Server</h2>
-                            <div className="flex items-center space-x-3">
-                                {!isEditing ? (
-                                    <button
-                                        onClick={() => setIsEditing(true)}
-                                        className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
-                                    >
-                                        <Settings className="h-5 w-5" />
-                                        <span className="font-semibold">Modifica</span>
-                                    </button>
-                                ) : (
-                                    <div className="flex gap-3">
-                                        <button
-                                            onClick={handleSave}
-                                            disabled={isSaving}
-                                            className="bg-gradient-to-r from-emerald-600 to-green-600 text-white px-6 py-3 rounded-xl hover:from-emerald-700 hover:to-green-700 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 shadow-lg hover:shadow-xl transform hover:scale-105"
-                                        >
-                                            {isSaving ? (
-                                                <Loader2 className="h-5 w-5 animate-spin" />
-                                            ) : (
-                                                <Save className="h-5 w-5" />
-                                            )}
-                                            <span className="font-semibold">{isSaving ? 'Salvataggio...' : 'Salva'}</span>
-                                        </button>
-                                        <button
-                                            onClick={handleCancelEdit}
-                                            disabled={isSaving}
-                                            className="bg-gradient-to-r from-slate-600 to-slate-700 text-white px-6 py-3 rounded-xl hover:from-slate-700 hover:to-slate-800 transition-all duration-200 disabled:opacity-50 shadow-lg hover:shadow-xl transform hover:scale-105"
-                                        >
-                                            <span className="font-semibold">Annulla</span>
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="p-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Nome Server */}
-                            <div className="space-y-2">
-                                <label className="block text-sm font-semibold text-slate-700">Nome Server</label>
-                                {isEditing ? (
-                                    <input
-                                        type="text"
-                                        value={server.nome}
-                                        onChange={(e) => handleInputChange('nome', e.target.value)}
-                                        className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-400 text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400"
-                                        placeholder="inserisci il nome del server..."
-                                        required
-                                    />
-                                ) : (
-                                    <p className="text-slate-900 py-3 font-medium bg-slate-50 px-4 rounded-xl">{server.nome}</p>
-                                )}
-                            </div>
-
-                            {/* Tipo Server */}
-                            <div className="space-y-2">
-                                <label className="block text-sm font-semibold text-slate-700">Tipo Server</label>
-                                {isEditing ? (
-                                    loadingTipi ? (
-                                        <select disabled className="w-full px-4 py-3 border border-slate-300 rounded-xl bg-slate-100">
-                                            <option>Caricamento...</option>
-                                        </select>
-                                    ) : tipiError ? (
-                                        <div className="text-red-600 font-medium">{tipiError}</div>
-                                    ) : (
-                                        <select
-                                            value={server.tipo}
-                                            onChange={(e) => handleInputChange("tipo", e.target.value)}
-                                            className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400"
-                                        >
-                                            {tipiOptions.map((tipo) => (
-                                                <option key={tipo} value={tipo}>
-                                                    {tipo.charAt(0).toUpperCase() + tipo.slice(1)}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    )
-                                ) : (
-                                    <p className="text-slate-900 py-3">
-                                        <span className="bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 px-4 py-2 rounded-xl text-sm font-semibold border border-blue-200">
-                                            {server.tipo}
-                                        </span>
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* Email Proprietario */}
-                            <div className="space-y-2">
-                                <label className="block text-sm font-semibold text-slate-700">
-                                    <Mail className="h-4 w-4 inline mr-1" />
-                                    Email Proprietario
-                                </label>
-                                {isEditing ? (
-                                    <input
-                                        type="email"
-                                        value={server.proprietario_email}
-                                        onChange={(e) => handleInputChange('proprietario_email', e.target.value)}
-                                        className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-400 text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400"
-                                        placeholder='mario@example.com'
-                                        required
-                                    />
-                                ) : (
-                                    <p className="text-slate-900 py-3 font-medium bg-slate-50 px-4 rounded-xl">{server.proprietario_email}</p>
-                                )}
-                            </div>
-
-                            {/* Stato */}
-                            <div className="space-y-2">
-                                <label className="block text-sm font-semibold text-slate-700">Stato</label>
-                                {isEditing ? (
-                                    loadingStati ? (
-                                        <select disabled className="w-full px-4 py-3 border border-slate-300 rounded-xl bg-slate-100">
-                                            <option>Caricamento...</option>
-                                        </select>
-                                    ) : statiError ? (
-                                        <div className="text-red-600 font-medium">{statiError}</div>
-                                    ) : (
-                                        <select
-                                            value={server.stato}
-                                            onChange={(e) => handleInputChange('stato', e.target.value)}
-                                            className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400"
-                                        >
-                                            {statiOptions.map((stato) => (
-                                                <option key={stato} value={stato}>
-                                                    {stato.charAt(0).toUpperCase() + stato.slice(1)}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    )
-                                ) : (
-                                    <span className="inline-block bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 px-4 py-2 rounded-xl text-sm font-semibold border border-blue-200 mt-2">
-                                        {server.stato}
-                                    </span>
-                                )}
-                            </div>
-
-                            {/* Data Acquisto */}
-                            <div className="space-y-2">
-                                <label className="block text-sm font-semibold text-slate-700">
-                                    <Calendar className="h-4 w-4 inline mr-1" />
-                                    Data Acquisto
-                                </label>
-                                {isEditing ? (
-                                    <input
-                                        type="date"
-                                        value={
-                                            server.data_acquisto
-                                                ? new Date(server.data_acquisto).toISOString().split('T')[0]
-                                                : ''
-                                        }
-                                        onChange={(e) => handleInputChange('data_acquisto', e.target.value)}
-                                        className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400"
-                                    />
-                                ) : (
-                                    <p className="text-slate-900 py-3 font-medium bg-slate-50 px-4 rounded-xl">
-                                        {server.data_acquisto
-                                            ? new Date(server.data_acquisto).toLocaleDateString('it-IT')
-                                            : '—'}
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* Data Scadenza */}
-                            <div className="space-y-2">
-                                <label className="block text-sm font-semibold text-slate-700">
-                                    <Calendar className="h-4 w-4 inline mr-1" />
-                                    Data Scadenza
-                                </label>
-                                {isEditing ? (
-                                    <input
-                                        type="date"
-                                        value={
-                                            server.data_scadenza
-                                                ? new Date(server.data_scadenza).toISOString().split('T')[0]
-                                                : '—'
-                                        }
-                                        onChange={(e) => handleInputChange('data_scadenza', e.target.value)}
-                                        className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400"
-                                    />
-                                ) : (
-                                    <p className="text-slate-900 py-3 font-medium bg-slate-50 px-4 rounded-xl">
-                                        {server.data_scadenza
-                                            ? new Date(server.data_scadenza).toLocaleDateString('it-IT')
-                                            : '—'}
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Actions */}
-                <div className="mt-8 bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 p-6">
-                    <h3 className="text-lg font-bold text-slate-800 mb-4">Azioni Pericolose</h3>
-                    <div className="flex items-center justify-between p-6 bg-gradient-to-r from-red-50 to-rose-50 rounded-xl border border-red-200">
-                        <div className="flex items-center">
-                            <div className="p-3 bg-red-100 rounded-xl mr-4">
-                                <AlertTriangle className="h-5 w-5 text-red-600" />
+                            <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg mr-4">
+                                <Server className="h-8 w-8 text-white" />
                             </div>
                             <div>
-                                <p className="text-sm font-semibold text-red-800">Elimina Server</p>
-                                <p className="text-sm text-red-600">Questa azione è irreversibile</p>
+                                <h1 className="text-3xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+                                    Gestione Server
+                                </h1>
+                                <p className="text-slate-600 mt-1 font-medium">ID: {serverId}, Pterodactyl UUID: {uuidShort}</p>
                             </div>
                         </div>
+                        {/* Pulsante di chiusura */}
                         <button
-                            onClick={() => setShowDeleteConfirm(true)}
-                            className="bg-gradient-to-r from-red-600 to-rose-600 text-white px-6 py-3 rounded-xl hover:from-red-700 hover:to-rose-700 transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
+                            onClick={onBack}
+                            className="p-2 hover:bg-slate-100 rounded-xl transition-colors duration-200 group"
                         >
-                            <Trash2 className="h-4 w-4" />
-                            <span className="font-semibold">Elimina</span>
+                            <X className="h-6 w-6 text-slate-600 group-hover:text-slate-900" />
                         </button>
                     </div>
                 </div>
 
-                {/* Delete Confirmation Modal */}
-                {showDeleteConfirm && (
-                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-                        <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl border border-white/20">
-                            <div className="flex items-center mb-4">
-                                <div className="p-3 bg-red-100 rounded-xl mr-3">
-                                    <AlertTriangle className="h-6 w-6 text-red-600" />
+                {/* Contenuto scrollabile del modale */}
+                <div className="p-6 space-y-6">
+                    {/* Error Alert */}
+                    {error && (
+                        <div className="bg-gradient-to-r from-red-50 to-rose-50 border border-red-200 rounded-xl p-4 shadow-sm">
+                            <div className="flex items-center">
+                                <div className="p-2 bg-red-100 rounded-lg mr-3">
+                                    <AlertTriangle className="h-5 w-5 text-red-600" />
                                 </div>
-                                <h3 className="text-lg font-bold text-slate-900">Conferma Eliminazione</h3>
+                                <span className="text-red-800 font-medium">{error}</span>
                             </div>
+                        </div>
+                    )}
+
+                    {/* Status Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-2xl shadow-lg border border-slate-200 p-6 hover:shadow-xl transition-all duration-300">
+                            <div className="flex items-center justify-between">
+                                <div className="w-full">
+                                    <p className="text-sm font-semibold text-slate-600 mb-3">Stato Server</p>
+                                    <div className="flex items-center flex-wrap gap-2">
+                                        <span
+                                            className={`px-4 py-2 rounded-full text-sm font-semibold shadow-sm ${server.stato === 'disponibile'
+                                                ? 'bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-800 border border-emerald-200'
+                                                : 'bg-gradient-to-r from-red-100 to-rose-100 text-red-800 border border-red-200'
+                                                }`}
+                                        >
+                                            {server.stato}
+                                        </span>
+                                        {server.sospeso && (
+                                            <span className="px-3 py-1 bg-gradient-to-r from-orange-100 to-amber-100 text-orange-800 rounded-full text-xs font-semibold border border-orange-200">
+                                                Sospeso
+                                            </span>
+                                        )}
+                                        {isExpiringSoon() && (
+                                            <span className="px-3 py-1 bg-gradient-to-r from-yellow-100 to-amber-100 text-yellow-800 rounded-full text-xs font-semibold border border-yellow-200">
+                                                In scadenza
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-2xl shadow-lg border border-slate-200 p-6 hover:shadow-xl transition-all duration-300">
+                            <div className="flex items-center justify-between">
+                                <div className="w-full">
+                                    <p className="text-sm font-semibold text-slate-600 mb-3">Azioni</p>
+                                    <div className="mt-2">
+                                        {server.pterodactyl_id ? (
+                                            <a
+                                                href={`http://192.168.1.56/admin/servers/view/${server.pterodactyl_id}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="group bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 inline-flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
+                                            >
+                                                <Server className="h-4 w-4 group-hover:rotate-12 transition-transform" />
+                                                Gestisci
+                                            </a>
+                                        ) : (
+                                            <span className="bg-gradient-to-r from-slate-400 to-slate-500 text-white px-4 py-2 rounded-xl text-sm font-semibold inline-flex items-center gap-2 opacity-50">
+                                                <Server className="h-4 w-4" />
+                                                Non disponibile
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-2xl shadow-lg border border-slate-200 p-6 hover:shadow-xl transition-all duration-300">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-semibold text-slate-600 mb-2">Rinnovi</p>
+                                    <p className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                                        {server.n_rinnovi || 0}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Main Content */}
+                    <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+                        <div className="p-6 bg-gradient-to-r from-slate-100 to-blue-100 border-b border-slate-200">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+                                    Informazioni Server
+                                </h2>
+                                <div className="flex items-center space-x-3">
+                                    {!isEditing ? (
+                                        <button
+                                            onClick={() => setIsEditing(true)}
+                                            className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
+                                        >
+                                            <Settings className="h-5 w-5" />
+                                            <span className="font-semibold">Modifica</span>
+                                        </button>
+                                    ) : (
+                                        <div className="flex gap-3">
+                                            <button
+                                                onClick={handleSave}
+                                                disabled={isSaving}
+                                                className="bg-gradient-to-r from-emerald-600 to-green-600 text-white px-6 py-3 rounded-xl hover:from-emerald-700 hover:to-green-700 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 shadow-lg hover:shadow-xl transform hover:scale-105"
+                                            >
+                                                {isSaving ? (
+                                                    <Loader2 className="h-5 w-5 animate-spin" />
+                                                ) : (
+                                                    <Save className="h-5 w-5" />
+                                                )}
+                                                <span className="font-semibold">{isSaving ? 'Salvataggio...' : 'Salva'}</span>
+                                            </button>
+                                            <button
+                                                onClick={handleCancelEdit}
+                                                disabled={isSaving}
+                                                className="px-6 py-3 text-slate-700 border border-slate-300 rounded-xl hover:bg-slate-50 transition-all duration-200 font-semibold disabled:opacity-50"
+                                            >
+                                                <span className="font-semibold">Annulla</span>
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-6">
+                            <div className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Nome Server */}
+                                    <div className="space-y-3">
+                                        <label className="block text-sm font-semibold text-slate-700">Nome Server</label>
+                                        {isEditing ? (
+                                            <input
+                                                type="text"
+                                                value={server.nome}
+                                                onChange={(e) => handleInputChange('nome', e.target.value)}
+                                                className="w-full h-12 px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-400 text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400"
+                                                placeholder="inserisci il nome del server..."
+                                                required
+                                            />
+                                        ) : (
+                                            <p className="text-slate-900 h-12 flex items-center px-4 bg-white rounded-xl font-medium border border-slate-200">{server.nome}</p>
+                                        )}
+                                    </div>
+
+                                    {/* Tipo Server */}
+                                    <div className="space-y-3">
+                                        <label className="block text-sm font-semibold text-slate-700">Tipo Server</label>
+                                        {isEditing ? (
+                                            loadingTipi ? (
+                                                <select disabled className="w-full h-12 px-4 py-3 border border-slate-300 rounded-xl bg-slate-100">
+                                                    <option>Caricamento...</option>
+                                                </select>
+                                            ) : tipiError ? (
+                                                <div className="text-red-600 font-medium p-3 bg-red-50 rounded-xl border border-red-200">
+                                                    {tipiError}
+                                                </div>
+                                            ) : (
+                                                <select
+                                                    value={server.tipo}
+                                                    onChange={(e) => handleInputChange("tipo", e.target.value)}
+                                                    className="w-full h-12 px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400"
+                                                >
+                                                    {tipiOptions.map((tipo) => (
+                                                        <option key={tipo} value={tipo}>
+                                                            {tipo.charAt(0).toUpperCase() + tipo.slice(1)}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            )
+                                        ) : (
+                                            <div className="h-12 flex items-center">
+                                                <span className="bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 px-4 py-2 rounded-xl text-sm font-semibold border border-blue-200">
+                                                    {server.tipo}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Email Proprietario */}
+                                    <div className="space-y-3">
+                                        <label className="block text-sm font-semibold text-slate-700">
+                                            <Mail className="h-4 w-4 inline mr-1" />
+                                            Email Proprietario
+                                        </label>
+                                        {isEditing ? (
+                                            <input
+                                                type="email"
+                                                value={server.proprietario_email}
+                                                onChange={(e) => handleInputChange('proprietario_email', e.target.value)}
+                                                className="w-full h-12 px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-400 text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400"
+                                                placeholder='mario@example.com'
+                                                required
+                                            />
+                                        ) : (
+                                            <p className="text-slate-900 h-12 flex items-center px-4 bg-white rounded-xl font-medium border border-slate-200">{server.proprietario_email}</p>
+                                        )}
+                                    </div>
+
+                                    {/* Stato */}
+                                    <div className="space-y-3">
+                                        <label className="block text-sm font-semibold text-slate-700">Stato</label>
+                                        {isEditing ? (
+                                            loadingStati ? (
+                                                <select disabled className="w-full h-12 px-4 py-3 border border-slate-300 rounded-xl bg-slate-100">
+                                                    <option>Caricamento...</option>
+                                                </select>
+                                            ) : statiError ? (
+                                                <div className="text-red-600 font-medium p-3 bg-red-50 rounded-xl border border-red-200">
+                                                    {statiError}
+                                                </div>
+                                            ) : (
+                                                <select
+                                                    value={server.stato}
+                                                    onChange={(e) => handleInputChange('stato', e.target.value)}
+                                                    className="w-full h-12 px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400"
+                                                >
+                                                    {statiOptions.map((stato) => (
+                                                        <option key={stato} value={stato}>
+                                                            {stato.charAt(0).toUpperCase() + stato.slice(1)}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            )
+                                        ) : (
+                                            <div className="h-12 flex items-center">
+                                                <span className="bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 px-4 py-2 rounded-xl text-sm font-semibold border border-blue-200">
+                                                    {server.stato}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Data Acquisto */}
+                                    <div className="space-y-3">
+                                        <label className="block text-sm font-semibold text-slate-700">
+                                            <Calendar className="h-4 w-4 inline mr-1" />
+                                            Data Acquisto
+                                        </label>
+                                        {isEditing ? (
+                                            <input
+                                                type="date"
+                                                value={
+                                                    server.data_acquisto
+                                                        ? new Date(server.data_acquisto).toISOString().split('T')[0]
+                                                        : ''
+                                                }
+                                                onChange={(e) => handleInputChange('data_acquisto', e.target.value)}
+                                                className="w-full h-12 px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400"
+                                            />
+                                        ) : (
+                                            <p className="text-slate-900 h-12 flex items-center px-4 bg-white rounded-xl font-medium border border-slate-200">
+                                                {server.data_acquisto
+                                                    ? new Date(server.data_acquisto).toLocaleDateString('it-IT')
+                                                    : '—'}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    {/* Data Scadenza */}
+                                    <div className="space-y-3">
+                                        <label className="block text-sm font-semibold text-slate-700">
+                                            <Calendar className="h-4 w-4 inline mr-1" />
+                                            Data Scadenza
+                                        </label>
+                                        {isEditing ? (
+                                            <input
+                                                type="date"
+                                                value={
+                                                    server.data_scadenza
+                                                        ? new Date(server.data_scadenza).toISOString().split('T')[0]
+                                                        : ''
+                                                }
+                                                onChange={(e) => handleInputChange('data_scadenza', e.target.value)}
+                                                className="w-full h-12 px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400"
+                                            />
+                                        ) : (
+                                            <p className="text-slate-900 h-12 flex items-center px-4 bg-white rounded-xl font-medium border border-slate-200">
+                                                {server.data_scadenza
+                                                    ? new Date(server.data_scadenza).toLocaleDateString('it-IT')
+                                                    : '—'}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    {/* Backup */}
+                                    <div className="space-y-3">
+                                        <label className="block text-sm font-semibold text-slate-700">
+                                            <Mail className="h-4 w-4 inline mr-1" />
+                                            Numero Backup
+                                        </label>
+                                        {isEditing ? (
+                                            <input
+                                                type="number"
+                                                value={server.n_backup ?? 0}
+                                                onChange={(e) => handleInputChange('n_backup', parseInt(e.target.value, 10) || 0)}
+                                                className="w-full h-12 px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-400 text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400"
+                                                placeholder="3,4,5,6"
+                                                required
+                                            />
+                                        ) : (
+                                            <p className="text-slate-900 h-12 flex items-center px-4 bg-white rounded-xl font-medium border border-slate-200">
+                                                {server.n_backup ?? 0}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-2xl shadow-lg border border-slate-200 p-6">
+                        <h3 className="text-xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent mb-4">
+                            Azioni Pericolose
+                        </h3>
+                        <div className="bg-gradient-to-r from-red-50 to-rose-50 border border-red-200 rounded-xl p-4 shadow-sm">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center">
+                                    <div className="p-2 bg-red-100 rounded-lg mr-3">
+                                        <AlertTriangle className="h-5 w-5 text-red-600" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-semibold text-red-800">Elimina Server</p>
+                                        <p className="text-sm text-red-600">Questa azione è irreversibile</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setShowDeleteConfirm(true)}
+                                    className="bg-gradient-to-r from-red-600 to-rose-600 text-white px-6 py-3 rounded-xl hover:from-red-700 hover:to-rose-700 transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                    <span className="font-semibold">Elimina</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteConfirm && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-[3px] flex items-center justify-center z-60" onClick={() => setShowDeleteConfirm(false)}>
+                    <div className="bg-white rounded-2xl max-w-md w-full mx-4 shadow-2xl border border-white/20" onClick={(e) => e.stopPropagation()}>
+                        <div className="p-6 bg-gradient-to-r from-slate-50 to-blue-50 border-b border-slate-200 rounded-t-2xl">
+                            <div className="flex items-center">
+                                <div className="p-3 bg-gradient-to-r from-red-500 to-rose-600 rounded-xl shadow-lg mr-4">
+                                    <AlertTriangle className="h-6 w-6 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+                                        Conferma Eliminazione
+                                    </h3>
+                                    <p className="text-slate-600 text-sm mt-1">Questa azione non può essere annullata</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-6">
                             <p className="text-slate-600 mb-6 leading-relaxed">
-                                Sei sicuro di voler eliminare il server <span className="font-semibold text-slate-900">"{server.nome}"</span>? Questa azione non può essere annullata.
+                                Sei sicuro di voler eliminare il server <span className="font-semibold text-slate-900">"{server.nome}"</span>?
                             </p>
                             <div className="flex justify-end space-x-3">
                                 <button
                                     onClick={() => setShowDeleteConfirm(false)}
-                                    className="px-6 py-3 text-slate-700 border border-slate-300 rounded-xl hover:bg-slate-50 transition-all duration-200 font-semibold"
+                                    className="px-6 py-3 text-slate-700 border border-slate-300 rounded-xl hover:bg-slate-50 transition-all duration-200 font-semibold ransition-all duration-200 disabled:opacity-50 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
                                 >
                                     Annulla
                                 </button>
@@ -1170,14 +1224,18 @@ const ServerManagementPage = ({ serverId, uuidShort, onBack }) => {
                                     disabled={isLoading}
                                     className="px-6 py-3 bg-gradient-to-r from-red-600 to-rose-600 text-white rounded-xl hover:from-red-700 hover:to-rose-700 transition-all duration-200 disabled:opacity-50 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
                                 >
-                                    {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                                    {isLoading ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <Trash2 className="h-4 w-4" />
+                                    )}
                                     <span className="font-semibold">Elimina</span>
                                 </button>
                             </div>
                         </div>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -1189,7 +1247,8 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
         versione_egg: '',
         versione_server: '',
         proprietario_email: '',
-        data_scadenza: ''
+        data_scadenza: '',
+        n_backup: 3
     });
 
     const [versioniEgg, setVersioniEgg] = useState([]);
@@ -1311,10 +1370,19 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
     };
 
     const handleInputChange = (field, value) => {
-        setFormData(prev => ({
-            ...prev,
-            [field]: value
-        }));
+        setFormData(prev => {
+            const updatedForm = {
+                ...prev,
+                [field]: field === 'n_backup' ? parseInt(value, 10) || 0 : value
+            };
+
+            // Se cambia egg, resetta la versione
+            if (field === 'versione_egg') {
+                updatedForm.versione_server = '';
+            }
+
+            return updatedForm;
+        });
 
         // Reset tipo quando cambia versione egg
         if (field === 'versione_egg') {
@@ -1380,6 +1448,7 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
                 data_scadenza: formData.data_scadenza,
                 n_rinnovi: 0,
                 stato: 'disponibile',
+                n_backup: formData.n_backup,
                 // Aggiungi sempre la versione server dal form
                 versione_server: formData.versione_server,
                 // Aggiungi info da Pterodactyl se disponibili
@@ -1416,6 +1485,8 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
                 onClose();
                 resetForm();
             }, 1500);
+
+            alert("Server creato con successo!");
 
         } catch (err) {
             setError(err.message);
@@ -1461,8 +1532,8 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
 
     return (
         <>
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-                <div className="bg-white rounded-2xl max-w-2xl w-full mx-4 shadow-2xl border border-white/20 max-h-[90vh] overflow-y-auto">
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50" onClick={handleClose} >
+                <div className="bg-white rounded-2xl max-w-4xl w-full mx-4 shadow-2xl border border-white/20 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} >
                     {/* Header */}
                     <div className="p-6 bg-gradient-to-r from-slate-50 to-blue-50 border-b border-slate-200 rounded-t-2xl">
                         <div className="flex items-center justify-between">
@@ -1663,6 +1734,23 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
                                             })}
                                         </select>
                                     )}
+                                </div>
+
+                                {/* Backup */}
+                                <div className="space-y-3">
+                                    <label className="block text-sm font-semibold text-slate-700">
+                                        <Mail className="h-4 w-4 inline mr-1" />
+                                        Numero Backup
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={formData.n_backup}
+                                        onChange={(e) => handleInputChange('n_backup', e.target.value)}
+                                        className="w-full h-12 px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-400 text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400"
+                                        placeholder="3,4,5,6"
+                                        defaultValue={3}
+                                        required
+                                    />
                                 </div>
                             </div>
 
