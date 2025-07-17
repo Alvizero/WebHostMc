@@ -1266,6 +1266,8 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
     const [allocationInfo, setAllocationInfo] = useState(null);
     const [dockerImageInfo, setDockerImageInfo] = useState(null);
     const [loadingPterodactylInfo, setLoadingPterodactylInfo] = useState(false);
+    const [dockerImagesMap, setDockerImagesMap] = useState({});
+
 
     // Carica dati al mount
     useEffect(() => {
@@ -1354,16 +1356,19 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
                 setAllocationInfo(allocationData);
             }
 
-            // Fetch docker image info
-            const dockerResponse = await fetch('http://localhost:3001/api/pterodactyl/latest-docker-image');
+            // Fetch all docker images for each egg
+            const dockerResponse = await fetch('http://localhost:3001/api/pterodactyl/latest-docker-images');
             if (dockerResponse.ok) {
-                const dockerData = await dockerResponse.json();
-                setDockerImageInfo(dockerData);
+                const dockerData = await dockerResponse.json(); // array: [{ nome, docker_image }]
+                const map = {};
+                dockerData.forEach(item => {
+                    map[item.nome.toLowerCase()] = item.docker_image;
+                });
+                setDockerImagesMap(map);
             }
 
         } catch (err) {
             console.error('Errore nel caricamento info Pterodactyl:', err);
-            // Non mostrare errore critico, sono info opzionali
         } finally {
             setLoadingPterodactylInfo(false);
         }
@@ -1450,10 +1455,18 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
                 stato: 'disponibile',
                 n_backup: formData.n_backup,
                 // Aggiungi sempre la versione server dal form
-                versione_server: formData.versione_server,
                 // Aggiungi info da Pterodactyl se disponibili
                 ...(allocationInfo && { allocation_id: allocationInfo.id }),
-                ...(dockerImageInfo && { docker_image: dockerImageInfo.image })
+                ...(dockerImagesMap && formData.versione_egg && (() => {
+                    const selectedEgg = versioniEgg.find(egg => egg.id === parseInt(formData.versione_egg));
+                    if (selectedEgg) {
+                        const image = dockerImagesMap[selectedEgg.nome.toLowerCase()];
+                        if (image) {
+                            return { docker_image: image };
+                        }
+                    }
+                    return {};
+                })())
             };
 
             console.log("🎯 formData.versione_server:", formData.versione_server);
@@ -1766,7 +1779,19 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
                                             <li>• Data acquisto: {new Date().toLocaleDateString('it-IT')}</li>
                                             <li>• Nodo: {allocationInfo ? `${allocationInfo.node}` : 'Caricamento...'}</li>
                                             <li>• Allocazione: {allocationInfo ? `${allocationInfo.ip}:${allocationInfo.port}` : 'Caricamento...'}</li>
-                                            <li>• Docker Image: {dockerImageInfo ? `${dockerImageInfo.image}` : 'Caricamento...'}</li>
+                                            {formData.versione_egg && (() => {
+                                                const selectedEgg = versioniEgg.find(e => e.id === parseInt(formData.versione_egg));
+                                                const image = selectedEgg ? dockerImagesMap[selectedEgg.nome.toLowerCase()] : null;
+                                                return (
+                                                    <li>  • Docker Image:{' '} {loadingPterodactylInfo ? 'Caricamento...' : formData.versione_egg ? (() => {
+                                                        const selectedEgg = versioniEgg.find(e => e.id === parseInt(formData.versione_egg));
+                                                        const image = selectedEgg ? dockerImagesMap[selectedEgg.nome.toLowerCase()] : null;
+                                                        const tag = image?.split(':')[1]; // Prende solo "java_21"
+                                                        return tag ? <code>{tag}</code> : 'Non disponibile';
+                                                    })() : 'Seleziona un egg'}
+                                                    </li>
+                                                );
+                                            })()}
                                         </ul>
                                     </div>
                                 </div>

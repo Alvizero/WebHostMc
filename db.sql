@@ -54,21 +54,9 @@ CREATE TABLE IF NOT EXISTS `server` (
   KEY `idx_server_stato` (`stato`),
   KEY `idx_server_scadenza` (`data_scadenza`),
   CONSTRAINT `server_ibfk_2` FOREIGN KEY (`proprietario_email`) REFERENCES `utenti` (`email`) ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=69 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- Dump dei dati della tabella webhostmc.server: ~11 rows (circa)
-INSERT INTO `server` (`id`, `nome`, `tipo`, `proprietario_email`, `data_acquisto`, `data_scadenza`, `n_rinnovi`, `n_backup`, `stato`, `pterodactyl_id`, `uuidShort`) VALUES
-	(3, 'asas', 'Server Medio', 'alvisesacconato02@gmail.com', '2025-07-13 22:00:00', '0000-00-00', 0, 3, 'disponibile', '3', '6a4ba6a7'),
-	(4, 'Alvise Mc\'s', 'Server Base', 'alvisesacconato02@gmail.com', '2025-07-14 20:00:00', '2025-08-16', 0, 3, 'disponibile', '4', 'ef8fa531'),
-	(5, 'sasads', 'Server Base', 'alvisesacconato02@gmail.com', '2025-07-15 14:00:00', '2029-10-09', 0, 3, 'disponibile', '5', '055f5816'),
-	(6, 'test', 'Server Base', 'alvisesacconato02@gmail.com', '2025-07-16 00:00:00', '2099-12-12', 0, NULL, 'disponibile', NULL, NULL),
-	(7, 'afdf', 'Server Base', 'alvisesacconato02@gmail.com', '2025-07-16 00:00:00', '2099-12-12', 0, NULL, 'disponibile', NULL, NULL),
-	(8, 'afdf', 'Server Base', 'alvisesacconato02@gmail.com', '2025-07-16 00:00:00', '2099-12-12', 0, NULL, 'disponibile', NULL, NULL),
-	(9, 'alvisesacconato02@gmail.com', 'Server Base', 'alvisesacconato02@gmail.com', '2025-07-15 22:00:00', '2099-12-11', 0, 55, 'disponibile', NULL, NULL),
-	(10, 'sasa', 'Server Base', 'alvisesacconato02@gmail.com', '2025-07-16 00:00:00', '2099-12-12', 0, NULL, 'disponibile', NULL, NULL),
-	(11, 'sasa', 'Server Base', 'alvisesacconato02@gmail.com', '2025-07-16 00:00:00', '2099-12-12', 0, 3, 'disponibile', '6', '558e72ef'),
-	(12, 'alvisesacconato02@gmail.com', 'Server Base', 'alvisesacconato02@gmail.com', '2025-07-16 00:00:00', '2099-12-12', 0, 4, 'disponibile', '7', 'bf89409b'),
-	(13, '222', 'Server Base', 'alvisesacconato02@gmail.com', '2025-07-15 00:00:00', '2025-12-07', 0, 155, 'scaduto', '8', 'e22c1f39');
+-- Dump dei dati della tabella webhostmc.server: ~0 rows (circa)
 
 -- Dump della struttura di tabella webhostmc.tipi_server
 CREATE TABLE IF NOT EXISTS `tipi_server` (
@@ -110,10 +98,9 @@ CREATE TABLE IF NOT EXISTS `utenti` (
   KEY `idx_users_username` (`username`)
 ) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- Dump dei dati della tabella webhostmc.utenti: ~1 rows (circa)
+-- Dump dei dati della tabella webhostmc.utenti: ~0 rows (circa)
 INSERT INTO `utenti` (`id`, `nome`, `cognome`, `username`, `email`, `password_hash`, `ruolo`, `data_registrazione`) VALUES
-	(1, 'Alvise', 'Sacconato', 'alvise', 'alvisesacconato02@gmail.com', '$2b$10$ns8ETTnrj63XdIPhCIr61OP1jEXFexNWQD48pcgGRJpGAFsrqE2Ua', 'admin', '2025-07-10 08:47:12'),
-	(2, 'Paolo', 'Sacconato', 'paolino', 'paolo@paolo.it', '$2b$10$ns8ETTnrj63XdIPhCIr61OP1jEXFexNWQD48pcgGRJpGAFsrqE2Ua', 'admin', '2025-07-10 08:47:12');
+	(1, 'Alvise', 'Sacconato', 'alvise', 'alvisesacconato02@gmail.com', '$2b$10$ns8ETTnrj63XdIPhCIr61OP1jEXFexNWQD48pcgGRJpGAFsrqE2Ua', 'admin', '2025-07-10 08:47:12');
 
 -- Dump della struttura di tabella webhostmc.versioni_server
 CREATE TABLE IF NOT EXISTS `versioni_server` (
@@ -127,7 +114,7 @@ CREATE TABLE IF NOT EXISTS `versioni_server` (
   CONSTRAINT `versioni_server_ibfk_1` FOREIGN KEY (`tipo_id`) REFERENCES `versioni_server_egg` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=25 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- Dump dei dati della tabella webhostmc.versioni_server: ~24 rows (circa)
+-- Dump dei dati della tabella webhostmc.versioni_server: ~20 rows (circa)
 INSERT INTO `versioni_server` (`id`, `tipo_id`, `versione`, `ultima_versione`, `popolare`) VALUES
 	(1, 1, '1.21.7', 1, 0),
 	(2, 1, '1.21.6', 0, 0),
@@ -137,40 +124,36 @@ INSERT INTO `versioni_server` (`id`, `tipo_id`, `versione`, `ultima_versione`, `
 	(6, 2, '1.21.6', 0, 0),
 	(7, 2, '1.21.5', 0, 0),
 	(8, 2, '1.21.4', 0, 0),
-	(9, 3, '1.21.7', 1, 0),
-	(10, 3, '1.21.6', 0, 0),
-	(11, 3, '1.21.5', 0, 0),
-	(12, 3, '1.21.4', 0, 0),
-	(13, 4, '1.21.5', 1, 0),
-	(14, 4, '1.21.4', 0, 0),
-	(15, 4, '1.21.3', 0, 0),
-	(16, 4, '1.21.2', 0, 0),
+	(9, 3, '1.21.5', 1, 0),
+	(10, 3, '1.21.4', 0, 0),
+	(11, 3, '1.21.3', 0, 0),
+	(12, 3, '1.21.2', 0, 0),
+	(13, 4, '1.21.7', 1, 0),
+	(14, 4, '1.21.6', 0, 0),
+	(15, 4, '1.21.5', 0, 0),
+	(16, 4, '1.21.4', 0, 0),
 	(17, 5, '1.21.7', 1, 0),
 	(18, 5, '1.21.6', 0, 0),
 	(19, 5, '1.21.5', 0, 0),
-	(20, 5, '1.21.4', 0, 0),
-	(21, 6, '1.21.5', 1, 0),
-	(22, 6, '1.21.4', 0, 0),
-	(23, 6, '1.21.3', 0, 0),
-	(24, 6, '1.21.1', 0, 0);
+	(20, 5, '1.21.4', 0, 0);
 
 -- Dump della struttura di tabella webhostmc.versioni_server_egg
 CREATE TABLE IF NOT EXISTS `versioni_server_egg` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `pterodactyl_id` int(11) unsigned DEFAULT NULL,
   `nome` varchar(50) NOT NULL,
   `descrizione` varchar(255) NOT NULL,
   `icona` varchar(10) NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- Dump dei dati della tabella webhostmc.versioni_server_egg: ~6 rows (circa)
-INSERT INTO `versioni_server_egg` (`id`, `nome`, `descrizione`, `icona`) VALUES
-	(1, 'Vanilla', 'Minecraft originale senza modifiche', '🎮'),
-	(2, 'Forge', 'Supporto completo per le mod', '🔨'),
-	(3, 'Fabric', 'Mod leggere e performance ottimizzate', '🧵'),
-	(4, 'Spigot', 'Supporto completo per i plugins', '🌟'),
-	(5, 'Paper', 'Fork di Spigot ottimizzato', '📄'),
-	(6, 'Bukkit', 'Plugins classici', '🪣');
+-- Dump dei dati della tabella webhostmc.versioni_server_egg: ~5 rows (circa)
+INSERT INTO `versioni_server_egg` (`id`, `pterodactyl_id`, `nome`, `descrizione`, `icona`) VALUES
+	(1, 4, 'Vanilla', 'Minecraft originale senza modifiche', '🎮'),
+	(2, 1, 'Forge', 'Supporto completo per le mod', '🔨'),
+	(3, 17, 'Spigot', 'Supporto completo per i plugins', '🌟'),
+	(4, 18, 'Paper', 'Fork di Spigot ottimizzato', '📄'),
+	(5, 16, 'Fabric', 'Mod leggere e performance ottimizzate', '🧵');
 
 /*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
 /*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;

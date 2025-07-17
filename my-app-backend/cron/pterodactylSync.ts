@@ -19,11 +19,9 @@ async function main() {
   const syncServerData = async (): Promise<void> => {
     console.log(chalk.blue(`[${new Date().toISOString()}] 🕒 Esecuzione cron job: sincronizzazione server...`));
     try {
-      const [localServers]: any[] = await db.query(`
-        SELECT id, nome, data_scadenza, pterodactyl_id, n_backup 
-        FROM server 
-        WHERE pterodactyl_id IS NOT NULL
-      `);
+      const [localServers]: any[] = await db.query(
+        'SELECT id, nome, data_scadenza, pterodactyl_id, n_backup FROM server WHERE pterodactyl_id IS NOT NULL'
+      );
 
       const response = await axios.get(`${PANEL_URL}/api/application/servers`, {
         headers: {
@@ -34,6 +32,8 @@ async function main() {
       });
 
       const remoteServers = response.data.data;
+      const remoteIds = remoteServers.map((s: any) => s.attributes.id.toString());
+      const localPteroIds = localServers.map((s: any) => s.pterodactyl_id);
 
       let updateCount = 0;
 
@@ -67,7 +67,7 @@ async function main() {
           }
         }
 
-        // ✅ n_backup ← feature_limits.backups
+        // ✅ n_backup
         const remoteBackupLimit = remote.attributes.feature_limits?.backups;
         if (typeof remoteBackupLimit === 'number' && local.n_backup !== remoteBackupLimit) {
           updates.push({ field: 'n_backup', oldValue: local.n_backup, newValue: remoteBackupLimit });
@@ -88,6 +88,79 @@ async function main() {
           }
           updateCount++;
         }
+      }
+
+      // 🗑️ Rimuovi dal DB locale i server non più presenti su Pterodactyl
+      const localToRemove = localServers.filter((local: any) => !remoteIds.includes(local.pterodactyl_id));
+      for (const server of localToRemove) {
+        await db.query('DELETE FROM server WHERE id = ?', [server.id]);
+        console.log(chalk.red(
+          `[${new Date().toISOString()}] 🗑️ Server ID ${server.id} rimosso dal DB locale: non trovato su Pterodactyl`
+        ));
+      }
+
+      // 🗑️ Rimuovi da Pterodactyl i server non più presenti nel DB locale
+      const remoteToRemove = remoteServers.filter((remote: any) => {
+        const id = remote.attributes.id.toString();
+        return !localPteroIds.includes(id);
+      });
+
+      for (const remote of remoteToRemove) {
+        const id = remote.attributes.id;
+        try {
+          await axios.delete(`${PANEL_URL}/api/application/servers/${id}`, {
+            headers: {
+              Authorization: `Bearer ${API_KEY}`,
+              'Content-Type': 'application/json',
+              Accept: 'Application/vnd.pterodactyl.v1+json',
+            }
+          });
+          console.log(chalk.red(
+            `[${new Date().toISOString()}] 🗑️ Server Pterodactyl ID ${id} eliminato: non trovato nel DB locale`
+          ));
+        } catch (err: any) {
+          console.error(chalk.red(
+            `[${new Date().toISOString()}] ❌ Errore nella rimozione del server Pterodactyl ID ${id}:`
+          ), err.response?.data || err.message);
+        }
+      }
+
+      // 🔄 Aggiorna la lista dopo le eliminazioni
+      const refreshedResponse = await axios.get(`${PANEL_URL}/api/application/servers`, {
+        headers: {
+          Authorization: `Bearer ${API_KEY}`,
+          'Content-Type': 'application/json',
+          Accept: 'Application/vnd.pterodactyl.v1+json',
+        }
+      });
+      const refreshedRemoteServers = refreshedResponse.data.data;
+
+      // ➕ Aggiungi nuovi server trovati su Pterodactyl ma non nel DB locale
+      const remoteToAdd = refreshedRemoteServers.filter((remote: any) => {
+        const id = remote.attributes.id.toString();
+        return !localPteroIds.includes(id);
+      });
+
+      for (const remote of remoteToAdd) {
+        const id = remote.attributes.id.toString();
+        const nome = remote.attributes.name;
+        const n_backup = remote.attributes.feature_limits?.backups ?? 0;
+
+        const [rows] = await pteroDb.query('SELECT exp_date FROM servers WHERE id = ?', [id]);
+        let data_scadenza: string | null = null;
+
+        if (Array.isArray(rows) && rows.length > 0) {
+          data_scadenza = (rows[0] as any).exp_date?.slice(0, 10) ?? null;
+        }
+
+        await db.query(
+          'INSERT INTO server (nome, data_scadenza, pterodactyl_id, n_backup) VALUES (?, ?, ?, ?)',
+          [nome, data_scadenza, id, n_backup]
+        );
+
+        console.log(chalk.green(
+          `[${new Date().toISOString()}] ➕ Aggiunto nuovo server al DB locale: "${nome}" (ID Ptero: ${id})`
+        ));
       }
 
       console.log(chalk.green(`[${new Date().toISOString()}] ✅ Sincronizzazione completata. Server aggiornati: ${updateCount}`));

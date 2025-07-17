@@ -382,21 +382,8 @@ app.put('/api/admin/servers/:serverId', authenticateAdmin, async (req: Request, 
     // Aggiorna Pterodactyl SOLO se esiste pterodactyl_id
     if (pterodactylId) {
       try {
-        //await updatePterodactylServerResources(pterodactylId, nome, cpu_cores, ram_gb, storage_gb, "attivo", data_scadenza);
-          await updatePterodactylServerResources(pterodactylId, nome, cpu_cores, ram_gb, storage_gb, stato, n_backup);
-        //   await updatePterodactylServerExpiration(pterodactylId, data_scadenza);
-
-
-        // ✅ Aggiorna exp_date solo dopo la gestione della sospensione
-        if (data_scadenza) {
-          try {
-            await updatePterodactylServerExpiration(pterodactylId, data_scadenza);
-          } catch (expirationError: any) {
-            console.error('❌ Errore aggiornamento exp_date:', expirationError.message);
-          }
-        }
-
-
+        await updatePterodactylServerResources(pterodactylId, nome, cpu_cores, ram_gb, storage_gb, stato, n_backup);
+        await updatePterodactylServerExpiration(pterodactylId, data_scadenza);
 
         console.log(`✅ Server ${pterodactylId} aggiornato completamente su Pterodactyl`);
         console.log(`📊 Nome: ${nome}, Tipo: ${tipo}, CPU: ${cpu_cores}, RAM: ${ram_gb}GB, DISK: ${storage_gb}GB, Stato: ${stato}`);
@@ -709,7 +696,7 @@ const updatePterodactylServerResources = async (pterodactylId: number, nome: str
   }
 };
 
-app.post("/api/servers", async (req, res) => {
+/*app.post("/api/servers", async (req, res) => {
   try {
     const {
       nome,
@@ -721,6 +708,7 @@ app.post("/api/servers", async (req, res) => {
       stato,
       allocation_id,
       docker_image,
+      versione_egg,
       versione_server,  // Cambia da vanilla_version a versione_server
       n_backup
     } = req.body;
@@ -806,6 +794,7 @@ app.post("/api/servers", async (req, res) => {
       throw new Error(`Errore Pterodactyl: ${pterodactylResponse.status}`);
     }
 
+
     const pterodactylData = await pterodactylResponse.json();
     console.log("Server creato in Pterodactyl:", pterodactylData);
 
@@ -815,6 +804,10 @@ app.post("/api/servers", async (req, res) => {
         "UPDATE server SET pterodactyl_id = ?, uuidShort = ? WHERE id = ?",
         [pterodactylData.attributes.id, pterodactylData.attributes.identifier, result.insertId]
       );
+    }
+
+    if (pterodactylResponse.ok) {
+      await updatePterodactylServerExpiration(pterodactylData.attributes.id, data_scadenza);
     }
 
     res.status(201).json({
@@ -828,7 +821,167 @@ app.post("/api/servers", async (req, res) => {
     console.error("Errore creazione server:", error);
     res.status(500).json({ error: "Errore del server" });
   }
+});*/
+
+
+app.post("/api/servers", async (req, res) => {
+  try {
+    const {
+      nome,
+      tipo,
+      proprietario_email,
+      data_acquisto,
+      data_scadenza,
+      n_rinnovi,
+      stato,
+      allocation_id,
+      docker_image,
+      versione_egg,
+      versione_server,
+      n_backup
+    } = req.body;
+
+    // Ottieni l'ID Pterodactyl dell'egg selezionato dal database
+    const [eggRows] = await pool.query(
+      'SELECT pterodactyl_id FROM versioni_server_egg WHERE id = ?',
+      [versione_egg]
+    );
+    if ((eggRows as any[]).length === 0) {
+      return res.status(400).json({ success: false, message: 'Egg non trovato nel database' });
+    }
+    const pterodactylEggId = (eggRows as any[])[0].pterodactyl_id;
+    if (!pterodactylEggId) {
+      return res.status(400).json({ success: false, message: 'Tipo di egg non supportato' });
+    }
+
+    // Recupera le specifiche del tipo di server dal database
+    const [tipoRows] = await pool.query('SELECT cpu_cores, ram_gb, storage_gb FROM tipi_server WHERE nome = ?', [tipo]);
+    const tipoData = tipoRows as any[];
+    if (tipoData.length === 0) {
+      return res.status(400).json({ success: false, message: 'Tipo di server non valido' });
+    }
+    const { cpu_cores, ram_gb, storage_gb } = tipoData[0];
+
+    // Configurazione startup e environment basata sul tipo di egg
+    let startup = "java -Xms128M -XX:MaxRAMPercentage=95.0 -jar {{SERVER_JARFILE}}";
+    let environment: { [key: string]: any } = {
+      SERVER_JARFILE: "server.jar",
+      VANILLA_VERSION: versione_server || "latest"
+    };
+    switch (pterodactylEggId) {
+      case 4:
+        environment = { SERVER_JARFILE: "server.jar", VANILLA_VERSION: versione_server || "latest" };
+        break;
+      case 1:
+        environment = {
+          SERVER_JARFILE: "server.jar",
+          MC_VERSION: versione_server || "1.21.7",
+          BUILD_TYPE: "recommended",
+          FORGE_VERSION: versione_server || "latest"
+        };
+        break;
+      case 17:
+        environment = { SERVER_JARFILE: "server.jar", DL_VERSION: versione_server || "latest" };
+        break;
+      case 18:
+        environment = { SERVER_JARFILE: "server.jar", PAPER_VERSION: versione_server || "1.21.7", BUILD_NUMBER: "latest" };
+        break;
+      case 16:
+        startup = "java -Xms128M -XX:MaxRAMPercentage=95.0 -jar {{SERVER_JARFILE}}";
+        environment = {
+          SERVER_JARFILE: "fabric-server-launch.jar",
+          LOADER_VERSION: "latest",
+          MC_VERSION: versione_server || "1.21.7"
+        };
+        break;
+      default:
+        console.log(`⚠️ Configurazione di default per egg ID: ${pterodactylEggId}`);
+        break;
+    }
+
+    // Payload per Pterodactyl
+    const pterodactylPayload = {
+      name: nome,
+      user: process.env.PTERODACTYL_DEFAULT_USER_ID,
+      egg: pterodactylEggId,
+      docker_image: docker_image,
+      startup: startup,
+      environment: environment,
+      limits: {
+        memory: ram_gb * 1024,
+        swap: 0,
+        disk: storage_gb * 1024,
+        io: 500,
+        cpu: cpu_cores * 100
+      },
+      feature_limits: {
+        databases: 0,
+        allocations: 0,
+        backups: n_backup
+      },
+      allocation: {
+        default: allocation_id
+      }
+    };
+
+    // Chiamata API a Pterodactyl (creazione server)
+    const pterodactylResponse = await fetch(
+      `${process.env.PTERODACTYL_API_URL || "http://192.168.1.56"}/api/application/servers`,
+      {
+        method: 'POST',
+        headers: {
+          "Authorization": `Bearer ${process.env.PTERODACTYL_API_KEY}`,
+          "Content-Type": "application/json",
+          "Accept": "application/vnd.pterodactyl.v1+json"
+        },
+        body: JSON.stringify(pterodactylPayload)
+      }
+    );
+
+    if (!pterodactylResponse.ok) {
+      const errorData = await pterodactylResponse.text();
+      console.error("Errore Pterodactyl:", errorData);
+      return res.status(500).json({ error: `Errore creazione server su Pterodactyl: ${pterodactylResponse.status}` });
+    }
+
+    const pterodactylData = await pterodactylResponse.json();
+
+    // Se siamo qui, la creazione su Pterodactyl è andata a buon fine,
+    // quindi inseriamo il server nel DB locale
+
+    const [result] = await pool.query(
+      "INSERT INTO server (nome, tipo, proprietario_email, data_acquisto, data_scadenza, n_rinnovi, stato, pterodactyl_id, uuidShort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [
+        nome,
+        tipo,
+        proprietario_email,
+        data_acquisto,
+        data_scadenza,
+        n_rinnovi,
+        stato,
+        pterodactylData.attributes.id,
+        pterodactylData.attributes.identifier
+      ]
+    ) as [ResultSetHeader, FieldPacket[]];
+
+    // Opzionale: aggiorna scadenza su Pterodactyl, se gestisci
+    if (pterodactylData.attributes?.id) {
+      await updatePterodactylServerExpiration(pterodactylData.attributes.id, data_scadenza);
+    }
+
+    res.status(201).json({
+      id: result.insertId,
+      pterodactyl_id: pterodactylData.attributes.id,
+      uuidShort: pterodactylData.attributes.identifier,
+      ...req.body
+    });
+
+  } catch (error) {
+    console.error("Errore creazione server:", error);
+    res.status(500).json({ error: "Errore del server" });
+  }
 });
+
 
 app.get('/api/pterodactyl/next-allocation', async (req: Request, res: Response) => {
   try {
@@ -876,33 +1029,47 @@ app.get('/api/pterodactyl/next-allocation', async (req: Request, res: Response) 
   }
 });
 
-app.get('/api/pterodactyl/latest-docker-image', async (req: Request, res: Response) => {
-  try {
-    const token = process.env.PTERODACTYL_API_KEY;
-    const baseUrl = process.env.PTERODACTYL_API_URL;
 
-    const eggsResponse = await axios.get(`${baseUrl}/api/application/nests/1/eggs`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/vnd.pterodactyl.v1+json'
-      }
+app.get('/api/pterodactyl/latest-docker-images', async (req: Request, res: Response) => {
+  try {
+    const token = process.env.PTERODACTYL_API_KEY!;
+    const baseUrl = process.env.PTERODACTYL_API_URL!;
+    const nestId = 1; // Supponendo che tutti gli egg siano nel nest 1
+
+    // Connessione al database per leggere gli egg
+    const connection = await mysql.createConnection({
+      host: process.env.DB_HOST!,
+      user: process.env.DB_USER!,
+      password: process.env.DB_PASSWORD!,
+      database: process.env.DB_NAME!
     });
 
-    // Cerca l'ultima egg con image disponibile
-    const allEggs = eggsResponse.data.data;
-    for (const egg of allEggs.reverse()) {
-      if (egg.attributes.docker_image) {
-        return res.json({
-          image: egg.attributes.docker_image,
-          eggName: egg.attributes.name
-        });
-      }
+    const [rows] = await connection.execute('SELECT nome, pterodactyl_id FROM versioni_server_egg');
+    const eggList = rows as { nome: string, pterodactyl_id: number }[];
+
+    const results: { nome: string, docker_image: string }[] = [];
+
+    // Per ogni egg, recupera l'ultima immagine docker
+    for (const egg of eggList) {
+      const eggResponse = await axios.get(`${baseUrl}/api/application/nests/${nestId}/eggs/${egg.pterodactyl_id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/vnd.pterodactyl.v1+json'
+        }
+      });
+
+      const dockerImage = eggResponse.data.attributes.docker_image;
+      results.push({
+        nome: egg.nome,
+        docker_image: dockerImage
+      });
     }
 
-    return res.status(404).json({ error: 'Nessuna immagine Docker trovata.' });
+    await connection.end();
+    return res.json(results);
   } catch (error: any) {
-    console.error('Errore docker image:', error.message);
-    res.status(500).json({ error: 'Errore durante il recupero immagine Docker.' });
+    console.error('Errore durante il recupero delle immagini Docker:', error.message);
+    return res.status(500).json({ error: 'Errore durante il recupero delle immagini Docker.' });
   }
 });
