@@ -24,11 +24,13 @@ const PTERODACTYL_CONFIG = {
   token: process.env.PTERODACTYL_API_KEY || "ptla_3Q6XeKhYeB0DgFubxyznuvwQpmtUoIuALpZwQqMrFmx",
   tokenclient: process.env.PTERODACTYL_CLIENT_API_KEY || "ptlc_1ZtFRqznCVSNStpOmIgDfHwEecWvNotTEncOyoqRA1K",
   defaultUserId: process.env.PTERODACTYL_DEFAULT_USER_ID || "1",
+  defaultSubUserPermission: process.env.PTERODACTYL_SUBUSER_PERMISSIONS,
   dbConfig: {
     host: process.env.PTERODACTYL_DB_HOST || '192.168.1.56',
     user: process.env.PTERODACTYL_DB_USER || 'alvise',
     password: process.env.PTERODACTYL_DB_PASSWORD || 'alvise1234',
-    database: process.env.PTERODACTYL_DB_NAME || 'panel'
+    database: process.env.PTERODACTYL_DB_NAME || 'panel',
+    connectionLimit: process.env.PTERODACTYL_DB_connectionLimit || "5",
   },
   srvrConfig: {
     swap: process.env.PTERODACTYL_DEFAULT_SWAP || "0",
@@ -36,7 +38,7 @@ const PTERODACTYL_CONFIG = {
     databases: process.env.PTERODACTYL_DEFAULT_DATABASES || "3",
     allocations: process.env.PTERODACTYL_DEFAULT_ALLOCATIONS || "0",
     backups: process.env.PTERODACTYL_DEFAULT_BACKUPS || "3",
-    nestsId: process.env.PTERODACTYL_MINECRAFT_ID || "1"
+    nestsId: process.env.PTERODACTYL_MINECRAFT_NESTS_ID || "1"
   }
 };
 
@@ -61,7 +63,7 @@ const pool = mysql.createPool({
 const pterodactylPool = mysql.createPool({
   ...PTERODACTYL_CONFIG.dbConfig,
   waitForConnections: true,
-  connectionLimit: parseInt(process.env.PTERODACTYL_DB_NAME_DB_connectionLimit || '5', 10),
+  connectionLimit: parseInt(PTERODACTYL_CONFIG.dbConfig.connectionLimit || '5', 10),
   queueLimit: 0
 });
 
@@ -801,7 +803,7 @@ async function isServerReady(serverIdentifier: string): Promise<boolean> {
 
 async function createSubUser(serverIdentifier: string, userEmail: string) {
   // Leggi i permissions dal file .env e convertili in array
-  const defaultPermissions = process.env.PTERODACTYL_DEFAULT_PERMISSIONS?.split(',').map(p => p.trim()) || [];
+  const defaultPermissions = PTERODACTYL_CONFIG.defaultSubUserPermission?.split(',').map(p => p.trim()) || [];
 
   const response = await axios.post(
     `${PTERODACTYL_CONFIG.baseUrl}/api/client/servers/${serverIdentifier}/users`,
