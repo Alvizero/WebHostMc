@@ -4,15 +4,12 @@ import mysql from 'mysql2/promise';
 import db from '../src/db'; // tua connessione DB locale
 import chalk from 'chalk';
 
-const PANEL_URL = 'http://192.168.1.56';
-const API_KEY = 'ptla_3Q6XeKhYeB0DgFubxyznuvwQpmtUoIuALpZwQqMrFmx';
-
 async function main() {
   const pteroDb = await mysql.createConnection({
-    host: '192.168.1.56',
-    user: 'alvise',
-    password: 'alvise1234',
-    database: 'panel',
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
     dateStrings: true,
   });
 
@@ -23,9 +20,9 @@ async function main() {
         'SELECT id, nome, data_scadenza, pterodactyl_id, n_backup FROM server WHERE pterodactyl_id IS NOT NULL'
       );
 
-      const response = await axios.get(`${PANEL_URL}/api/application/servers`, {
+      const response = await axios.get(`${process.env.PTERODACTYL_API_URL}/api/application/servers`, {
         headers: {
-          Authorization: `Bearer ${API_KEY}`,
+          Authorization: `Bearer ${process.env.PTERODACTYL_API_KEY}`,
           'Content-Type': 'application/json',
           Accept: 'Application/vnd.pterodactyl.v1+json',
         }
@@ -108,9 +105,9 @@ async function main() {
       for (const remote of remoteToRemove) {
         const id = remote.attributes.id;
         try {
-          await axios.delete(`${PANEL_URL}/api/application/servers/${id}`, {
+          await axios.delete(`${process.env.PTERODACTYL_API_URL}/api/application/servers/${id}`, {
             headers: {
-              Authorization: `Bearer ${API_KEY}`,
+              Authorization: `Bearer ${process.env.PTERODACTYL_API_KEY}`,
               'Content-Type': 'application/json',
               Accept: 'Application/vnd.pterodactyl.v1+json',
             }
@@ -126,9 +123,9 @@ async function main() {
       }
 
       // 🔄 Aggiorna la lista dopo le eliminazioni
-      const refreshedResponse = await axios.get(`${PANEL_URL}/api/application/servers`, {
+      const refreshedResponse = await axios.get(`${process.env.PTERODACTYL_API_URL}/api/application/servers`, {
         headers: {
-          Authorization: `Bearer ${API_KEY}`,
+          Authorization: `Bearer ${process.env.PTERODACTYL_API_KEY}`,
           'Content-Type': 'application/json',
           Accept: 'Application/vnd.pterodactyl.v1+json',
         }

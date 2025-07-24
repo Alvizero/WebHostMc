@@ -11,7 +11,7 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
         versione_server: '',
         proprietario_email: '',
         data_scadenza: '',
-        n_backup: 3
+        n_backup: Number(process.env.NEXT_PUBLIC_PTERODACTYL_DEFAULT_BACKUPS) || 3
     });
 
     const [versioniEgg, setVersioniEgg] = useState([]);
@@ -161,13 +161,36 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
         }
     };
 
-    const validateForm = () => {
+    const validateForm = async () => {
         if (!formData.nome.trim()) {
             throw new Error('Nome server è obbligatorio');
         }
         if (!formData.proprietario_email.trim()) {
             throw new Error('Email proprietario è obbligatoria');
         }
+
+        // Validazione formato email
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(formData.proprietario_email)) {
+            throw new Error('Email non valida');
+        }
+
+        // Verifica se l'email esiste nel database
+        const emailResponse = await fetch("http://localhost:3001/api/check-user", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: formData.proprietario_email.trim() }),
+        });
+
+        if (!emailResponse.ok) {
+            const data = await emailResponse.json();
+            if (emailResponse.status === 404) {
+                throw new Error("Nessun utente trovato con questa email. Verifca la email/registra l'utente");
+            } else {
+                throw new Error(data.error || "Errore nella verifica dell'email.");
+            }
+        }
+
         if (!formData.tipo) {
             throw new Error('Tipo server è obbligatorio');
         }
@@ -175,16 +198,9 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
             throw new Error('Tipo Egg è obbligatorio');
         }
         if (!formData.versione_server) {
-            throw new Error('Verisione Server è obbligatorio');
+            throw new Error('Versione Server è obbligatoria');
         }
 
-        // Validazione email
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(formData.proprietario_email)) {
-            throw new Error('Email non valida');
-        }
-
-        // Validazione data scadenza
         const today = new Date();
         const scadenza = new Date(formData.data_scadenza);
         if (scadenza <= today) {
@@ -197,7 +213,7 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
         setSuccess('');
 
         try {
-            validateForm();
+            await validateForm();
             setShowConfirmModal(true);
         } catch (err) {
             setError(err.message);

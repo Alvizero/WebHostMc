@@ -6,6 +6,7 @@ import { ResultSetHeader, FieldPacket } from 'mysql2';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import dotenv from "dotenv";
 import axios from 'axios';
+import { WASI } from 'wasi';
 
 // Carica variabili da .env
 dotenv.config();
@@ -21,12 +22,21 @@ app.use(express.json());
 const PTERODACTYL_CONFIG = {
   baseUrl: process.env.PTERODACTYL_API_URL || "http://192.168.1.56",
   token: process.env.PTERODACTYL_API_KEY || "ptla_3Q6XeKhYeB0DgFubxyznuvwQpmtUoIuALpZwQqMrFmx",
+  tokenclient: process.env.PTERODACTYL_CLIENT_API_KEY || "ptlc_1ZtFRqznCVSNStpOmIgDfHwEecWvNotTEncOyoqRA1K",
   defaultUserId: process.env.PTERODACTYL_DEFAULT_USER_ID || "1",
   dbConfig: {
     host: process.env.PTERODACTYL_DB_HOST || '192.168.1.56',
     user: process.env.PTERODACTYL_DB_USER || 'alvise',
     password: process.env.PTERODACTYL_DB_PASSWORD || 'alvise1234',
     database: process.env.PTERODACTYL_DB_NAME || 'panel'
+  },
+  srvrConfig: {
+    swap: process.env.PTERODACTYL_DEFAULT_SWAP || "0",
+    io: process.env.PTERODACTYL_DEFAULT_IO || "500",
+    databases: process.env.PTERODACTYL_DEFAULT_DATABASES || "3",
+    allocations: process.env.PTERODACTYL_DEFAULT_ALLOCATIONS || "0",
+    backups: process.env.PTERODACTYL_DEFAULT_BACKUPS || "3",
+    nestsId: process.env.PTERODACTYL_MINECRAFT_ID || "1"
   }
 };
 
@@ -493,13 +503,9 @@ app.get('/api/admin/servers', authenticateAdmin, async (req: Request, res: Respo
 app.get('/api/admin/servers/:serverId', authenticateAdmin, async (req: Request, res: Response) => {
   try {
     const serverId = parseInt(req.params.serverId);
-    const [rows] = await pool.query(`
-      SELECT 
-        s.id, s.nome, s.tipo, s.proprietario_email, s.data_acquisto, 
-        s.data_scadenza, s.n_rinnovi, s.stato, s.pterodactyl_id, s.n_backup, s.commenti
-      FROM server s 
-      WHERE s.id = ?
-    `, [serverId]);
+    const [rows] = await pool.query(`SELECT s.id, s.nome, s.tipo, s.proprietario_email, s.data_acquisto, s.data_scadenza, s.n_rinnovi, s.stato, s.pterodactyl_id, s.n_backup, s.commenti FROM server s WHERE s.id = ?`,
+      [serverId]
+    );
 
     const servers = rows as any[];
     if (servers.length === 0) {
@@ -536,12 +542,9 @@ app.put('/api/admin/servers/:serverId', authenticateAdmin, async (req: Request, 
     const { cpu_cores, ram_gb, storage_gb } = tipoData[0];
 
     // Aggiorna database
-    await pool.query(`
-      UPDATE server 
-      SET nome = ?, tipo = ?, proprietario_email = ?, data_acquisto = ?, 
-          data_scadenza = ?, stato = ?, n_rinnovi = ?, n_backup = ?, commenti = ?
-      WHERE id = ?
-    `, [nome, tipo, proprietario_email, data_acquisto, data_scadenza, stato, n_rinnovi, n_backup, commenti, serverId]);
+    await pool.query(`UPDATE server SET nome = ?, tipo = ?, proprietario_email = ?, data_acquisto = ?, data_scadenza = ?, stato = ?, n_rinnovi = ?, n_backup = ?, commenti = ? WHERE id = ?`,
+      [nome, tipo, proprietario_email, data_acquisto, data_scadenza, stato, n_rinnovi, n_backup, commenti, serverId]
+    );
 
     // Aggiorna Pterodactyl se esiste ID
     if (pterodactylId) {
@@ -602,11 +605,7 @@ app.delete('/api/admin/servers/:serverId', authenticateAdmin, async (req: Reques
 // SERVER CREATION
 app.post("/api/servers", async (req, res) => {
   try {
-    const {
-      nome, tipo, proprietario_email, data_acquisto, data_scadenza,
-      n_rinnovi, stato, allocation_id, docker_image, versione_egg,
-      versione_server, n_backup
-    } = req.body;
+    const { nome, tipo, proprietario_email, data_acquisto, data_scadenza, n_rinnovi, stato, allocation_id, docker_image, versione_egg, versione_server, n_backup } = req.body;
 
     // Ottieni egg Pterodactyl ID
     const [eggRows] = await pool.query(
@@ -636,26 +635,32 @@ app.post("/api/servers", async (req, res) => {
       const configs: { [key: number]: any } = {
         4: { // Vanilla
           startup: "java -Xms128M -XX:MaxRAMPercentage=95.0 -jar {{SERVER_JARFILE}}",
-          environment: { SERVER_JARFILE: "server.jar", VANILLA_VERSION: version || "latest" }
+          environment: {
+            SERVER_JARFILE: "server.jar",
+            VANILLA_VERSION: version || "latest"
+          }
         },
         1: { // Forge
           startup: "java -Xms128M -XX:MaxRAMPercentage=95.0 -jar {{SERVER_JARFILE}}",
           environment: {
             SERVER_JARFILE: "server.jar",
-            MC_VERSION: version || "1.21.7",
+            MC_VERSION: version || "latset",
             BUILD_TYPE: "recommended",
             FORGE_VERSION: version || "latest"
           }
         },
         17: { // Spigot
           startup: "java -Xms128M -XX:MaxRAMPercentage=95.0 -jar {{SERVER_JARFILE}}",
-          environment: { SERVER_JARFILE: "server.jar", DL_VERSION: version || "latest" }
+          environment: {
+            SERVER_JARFILE: "server.jar",
+            DL_VERSION: version || "latest"
+          }
         },
         18: { // Paper
           startup: "java -Xms128M -XX:MaxRAMPercentage=95.0 -jar {{SERVER_JARFILE}}",
           environment: {
             SERVER_JARFILE: "server.jar",
-            PAPER_VERSION: version || "1.21.7",
+            PAPER_VERSION: version || "latset",
             BUILD_NUMBER: "latest"
           }
         },
@@ -664,7 +669,7 @@ app.post("/api/servers", async (req, res) => {
           environment: {
             SERVER_JARFILE: "fabric-server-launch.jar",
             LOADER_VERSION: "latest",
-            MC_VERSION: version || "1.21.7"
+            MC_VERSION: version || "latset"
           }
         }
       };
@@ -684,15 +689,15 @@ app.post("/api/servers", async (req, res) => {
       environment: eggConfig.environment,
       limits: {
         memory: ram_gb * 1024,
-        swap: 0,
+        swap: PTERODACTYL_CONFIG.srvrConfig.swap,
         disk: storage_gb * 1024,
-        io: 500,
+        io: PTERODACTYL_CONFIG.srvrConfig.io,
         cpu: cpu_cores * 100
       },
       feature_limits: {
-        databases: 0,
-        allocations: 0,
-        backups: n_backup
+        databases: PTERODACTYL_CONFIG.srvrConfig.databases,
+        allocations: PTERODACTYL_CONFIG.srvrConfig.allocations,
+        backups: n_backup || PTERODACTYL_CONFIG.srvrConfig.backups
       },
       allocation: {
         default: allocation_id
@@ -705,10 +710,7 @@ app.post("/api/servers", async (req, res) => {
     // Inserisci nel DB locale
     const [result] = await pool.query(
       "INSERT INTO server (nome, tipo, proprietario_email, data_acquisto, data_scadenza, n_rinnovi, stato, pterodactyl_id, uuidShort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [
-        nome, tipo, proprietario_email, data_acquisto, data_scadenza,
-        n_rinnovi, stato, pterodactylData.attributes.id, pterodactylData.attributes.identifier
-      ]
+      [nome, tipo, proprietario_email, data_acquisto, data_scadenza, n_rinnovi, stato, pterodactylData.attributes.id, pterodactylData.attributes.identifier]
     ) as [ResultSetHeader, FieldPacket[]];
 
     // Aggiorna scadenza se specificata
@@ -723,11 +725,101 @@ app.post("/api/servers", async (req, res) => {
       ...req.body
     });
 
+    createSubUserWhenReady(pterodactylData.attributes.identifier, proprietario_email);
+
   } catch (error: any) {
     console.error("Errore creazione server:", error.message);
     res.status(500).json({ error: "Errore del server" });
   }
 });
+
+async function createSubUserWhenReady(serverIdentifier: string, userEmail: string) {
+  const maxAttempts = 20; // Max 20 tentativi (circa 2-3 minuti)
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      console.log(`🔄 Controllo stato server ${serverIdentifier} (tentativo ${attempt})`);
+
+      // Controlla se il server è pronto
+      const isReady = await isServerReady(serverIdentifier);
+
+      if (isReady) {
+        console.log(`✅ Server pronto, creo sub-user per ${userEmail}`);
+        await createSubUser(serverIdentifier, userEmail);
+        console.log(`✅ Sub-user creato con successo per ${userEmail}`);
+        return;
+      }
+
+      // Delay intelligente: inizia con 3 secondi, poi aumenta gradualmente
+      const delay = Math.min(3000 + (attempt * 1000), 10000); // Max 10 secondi
+      console.log(`⏳ Server non ancora pronto, riprovo tra ${delay / 1000}s`);
+
+      await new Promise(resolve => setTimeout(resolve, delay));
+
+    } catch (error: any) {
+      console.error(`⚠️ Errore tentativo ${attempt}: ${error.message}`);
+
+      if (attempt === maxAttempts) {
+        console.error(`❌ Impossibile creare sub-user per ${userEmail} dopo ${maxAttempts} tentativi`);
+        return;
+      }
+
+      // In caso di errore, aspetta un po' di più
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+  }
+}
+
+// Controlla se il server Pterodactyl è pronto per i sub-user
+async function isServerReady(serverIdentifier: string): Promise<boolean> {
+  try {
+    // Prova prima con l'API client
+    const response = await axios.get(
+      `${PTERODACTYL_CONFIG.baseUrl}/api/client/servers/${serverIdentifier}`,
+      {
+        headers: {
+          Authorization: `Bearer ${PTERODACTYL_CONFIG.tokenclient}`,
+          Accept: "Application/vnd.pterodactyl.v1+json"
+        }
+      }
+    );
+
+    const serverData = response.data.attributes;
+
+    // Il server è pronto se non sta installando e non è sospeso
+    const isReady = !serverData.is_installing && !serverData.is_suspended && serverData.current_state !== 'installing';
+
+    console.log(`📊 Server status: installing=${serverData.is_installing}, suspended=${serverData.is_suspended}, state=${serverData.current_state}`);
+
+    return isReady;
+
+  } catch (error: any) {
+    console.log(`⚠️ Errore controllo stato: ${error.message}`);
+    return false;
+  }
+}
+
+async function createSubUser(serverIdentifier: string, userEmail: string) {
+  // Leggi i permissions dal file .env e convertili in array
+  const defaultPermissions = process.env.PTERODACTYL_DEFAULT_PERMISSIONS?.split(',').map(p => p.trim()) || [];
+
+  const response = await axios.post(
+    `${PTERODACTYL_CONFIG.baseUrl}/api/client/servers/${serverIdentifier}/users`,
+    {
+      email: userEmail,
+      permissions: defaultPermissions
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${PTERODACTYL_CONFIG.tokenclient}`,
+        Accept: "Application/vnd.pterodactyl.v1+json",
+        "Content-Type": "application/json"
+      }
+    }
+  );
+
+  return response.data;
+}
 
 // Recupera prossima allocazione libera
 app.get('/api/pterodactyl/next-allocation', async (req: Request, res: Response) => {
@@ -735,10 +827,7 @@ app.get('/api/pterodactyl/next-allocation', async (req: Request, res: Response) 
     const headers = getPterodactylHeaders();
 
     // Recupera tutti i nodi
-    const nodesResponse = await axios.get(
-      `${PTERODACTYL_CONFIG.baseUrl}/api/application/nodes`,
-      { headers }
-    );
+    const nodesResponse = await axios.get(`${PTERODACTYL_CONFIG.baseUrl}/api/application/nodes`, { headers });
 
     const nodes = nodesResponse.data.data;
     if (!nodes?.length) {
@@ -748,14 +837,9 @@ app.get('/api/pterodactyl/next-allocation', async (req: Request, res: Response) 
     // Cerca allocazione libera nel primo nodo disponibile
     for (const node of nodes) {
       try {
-        const allocationsResponse = await axios.get(
-          `${PTERODACTYL_CONFIG.baseUrl}/api/application/nodes/${node.attributes.id}/allocations`,
-          { headers }
-        );
+        const allocationsResponse = await axios.get(`${PTERODACTYL_CONFIG.baseUrl}/api/application/nodes/${node.attributes.id}/allocations`, { headers });
 
-        const freeAllocation = allocationsResponse.data.data?.find(
-          (alloc: any) => !alloc.attributes.assigned
-        );
+        const freeAllocation = allocationsResponse.data.data?.find((alloc: any) => !alloc.attributes.assigned);
 
         if (freeAllocation) {
           const { id, ip, port } = freeAllocation.attributes;
@@ -777,7 +861,7 @@ app.get('/api/pterodactyl/next-allocation', async (req: Request, res: Response) 
 
   } catch (error: any) {
     console.error('Errore recupero allocazione:', error.message);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Errore durante il recupero allocazione',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -788,15 +872,13 @@ app.get('/api/pterodactyl/next-allocation', async (req: Request, res: Response) 
 app.get('/api/pterodactyl/latest-docker-images', async (req: Request, res: Response) => {
   try {
     const headers = getPterodactylHeaders();
-    const nestId = 1; // ID del nest (potrebbe essere configurabile)
+    const nestId = PTERODACTYL_CONFIG.srvrConfig.nestsId; // ID del nest (potrebbe essere configurabile)
 
     // Recupera egg dal database locale
-    const [eggRows] = await pool.query(
-      'SELECT nome, pterodactyl_id FROM versioni_server_egg WHERE pterodactyl_id IS NOT NULL'
-    );
-    
+    const [eggRows] = await pool.query('SELECT nome, pterodactyl_id FROM versioni_server_egg WHERE pterodactyl_id IS NOT NULL');
+
     const eggs = eggRows as { nome: string, pterodactyl_id: number }[];
-    
+
     if (!eggs.length) {
       return res.json([]);
     }
@@ -804,10 +886,7 @@ app.get('/api/pterodactyl/latest-docker-images', async (req: Request, res: Respo
     // Recupera immagini Docker in parallelo
     const dockerImagePromises = eggs.map(async (egg) => {
       try {
-        const eggResponse = await axios.get(
-          `${PTERODACTYL_CONFIG.baseUrl}/api/application/nests/${nestId}/eggs/${egg.pterodactyl_id}`,
-          { headers }
-        );
+        const eggResponse = await axios.get(`${PTERODACTYL_CONFIG.baseUrl}/api/application/nests/${nestId}/eggs/${egg.pterodactyl_id}`, { headers });
 
         return {
           nome: egg.nome,
@@ -826,7 +905,7 @@ app.get('/api/pterodactyl/latest-docker-images', async (req: Request, res: Respo
     });
 
     const results = await Promise.allSettled(dockerImagePromises);
-    
+
     const dockerImages = results
       .filter((result): result is PromiseFulfilledResult<any> => result.status === 'fulfilled')
       .map(result => result.value)
@@ -836,7 +915,7 @@ app.get('/api/pterodactyl/latest-docker-images', async (req: Request, res: Respo
 
   } catch (error: any) {
     console.error('Errore recupero immagini Docker:', error.message);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Errore durante il recupero delle immagini Docker',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
