@@ -1,0 +1,27 @@
+{
+  "online": 0,
+  "offline": 3,
+  "sospesi": 0,
+  "sconosciuto": 0,
+  "lastUpdate": "2025-07-15T20:50:00.077Z",
+  "servers": [
+    {
+      "id": 1,
+      "name": "alvise dio cane",
+      "uuid": "04ce672b-8e49-4abb-9ef9-27bd495e4d30",
+      "status": "offline"
+    },
+    {
+      "id": 2,
+      "name": "test ggg gay",
+      "uuid": "fb708374-f813-4043-b4bd-aadb27429b88",
+      "status": "offline"
+    },
+    {
+      "id": 3,
+      "name": "asas",
+      "uuid": "6a4ba6a7-27b5-42e1-a58c-319156426bc2",
+      "status": "offline"
+    }
+  ]
+}
