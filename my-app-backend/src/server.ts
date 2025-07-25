@@ -12,7 +12,6 @@ import { WASI } from 'wasi';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecret';
 
 app.use(cors());
@@ -254,8 +253,8 @@ class PterodactylService {
 
 // ROUTES
 
-app.listen(PORT, () => {
-  console.log(`✅ Server avviato su http://localhost:${PORT}`);
+app.listen(process.env.PORT || 3001, () => {
+  console.log(`✅ Server avviato su ${process.env.BACKEND_URL}`);
 });
 
 // Routes base
@@ -608,6 +607,7 @@ app.delete('/api/admin/servers/:serverId', authenticateAdmin, async (req: Reques
 app.post("/api/servers", async (req, res) => {
   try {
     const { nome, tipo, proprietario_email, data_acquisto, data_scadenza, n_rinnovi, stato, allocation_id, docker_image, versione_egg, versione_server, n_backup } = req.body;
+    const safeDataScadenza = !data_scadenza || data_scadenza.trim() === '' ? null : data_scadenza;
 
     // Ottieni egg Pterodactyl ID
     const [eggRows] = await pool.query(
@@ -712,7 +712,7 @@ app.post("/api/servers", async (req, res) => {
     // Inserisci nel DB locale
     const [result] = await pool.query(
       "INSERT INTO server (nome, tipo, proprietario_email, data_acquisto, data_scadenza, n_rinnovi, stato, pterodactyl_id, uuidShort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [nome, tipo, proprietario_email, data_acquisto, data_scadenza, n_rinnovi, stato, pterodactylData.attributes.id, pterodactylData.attributes.identifier]
+      [nome, tipo, proprietario_email, data_acquisto, safeDataScadenza, n_rinnovi, stato, pterodactylData.attributes.id, pterodactylData.attributes.identifier]
     ) as [ResultSetHeader, FieldPacket[]];
 
     // Aggiorna scadenza se specificata
@@ -923,3 +923,47 @@ app.get('/api/pterodactyl/latest-docker-images', async (req: Request, res: Respo
     });
   }
 });
+
+app.get('/api/pterodactyl/client/servers/:uuid/startup', async (req, res) => {
+  const { uuid } = req.params;
+
+  try {
+
+    if (!PTERODACTYL_CONFIG.tokenclient || !PTERODACTYL_CONFIG.baseUrl) {
+      return res.status(500).json({ error: 'Configurazione API mancante' });
+    }
+
+    const response = await axios.get(`${PTERODACTYL_CONFIG.baseUrl}/api/client/servers/${uuid}/startup`, {
+      headers: {
+        Authorization: `Bearer ${PTERODACTYL_CONFIG.tokenclient}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const variables = response.data?.data || [];
+
+    // Trova una variabile tipo *_VERSION
+    const versionVar = variables.find((v: any) =>
+      v.attributes.env_variable.endsWith('_VERSION')
+    );
+
+    const version = versionVar?.attributes?.server_value || 'Sconosciuta';
+
+    const eggTypeRaw = versionVar?.attributes?.env_variable || 'UNKNOWN_VERSION';
+    const eggType = eggTypeRaw.replace('_VERSION', '').toLowerCase();
+
+    res.json({
+      eggType: capitalize(eggType), // esempio: "vanilla"
+      version                        // esempio: "1.21.7"
+    });
+
+  } catch (error: any) {
+    console.error('Errore nel recupero startup info:', error?.response?.data || error.message);
+    res.status(500).json({ error: 'Errore nel recupero informazioni startup' });
+  }
+});
+
+function capitalize(str: string) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}

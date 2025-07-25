@@ -12,6 +12,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const router = useRouter();
     const pathname = usePathname();
 
+    const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL;
+
     useEffect(() => {
         const token = localStorage.getItem('adminToken');
         if (!token) {
@@ -19,7 +21,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             return;
         }
 
-        fetch('http://localhost:3001/api/auth/verify', {
+        fetch(`${API_BASE}/api/auth/verify`, {
             headers: { Authorization: `Bearer ${token}` },
         })
             .then(res => res.json())

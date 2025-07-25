@@ -69,9 +69,10 @@ export default function Page() {
   const [versions, setVersions] = useState<VersioneServerDisponibile[]>([]);
   const [loadingVersions, setLoadingVersions] = useState(true);
 
+  const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL;
 
   useEffect(() => {
-    fetch("http://localhost:3001/api/tipi-server")
+    fetch(`${API_BASE}/api/tipi-server`)
       .then((res) => res.json())
       .then((data) => {
         setServerOptions(data);
@@ -88,7 +89,7 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
-    fetch("http://localhost:3001/api/durate-noleggio")
+    fetch(`${API_BASE}/api/durate-noleggio`)
       .then(res => res.json())
       .then(data => {
         setDurateNoleggio(data);
@@ -101,7 +102,7 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
-    fetch("http://localhost:3001/api/versioni-server-egg")
+    fetch(`${API_BASE}/api/versioni-server-egg`)
       .then((res) => res.json())
       .then((data) => {
         setEggTypes(data);
@@ -114,7 +115,7 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
-    fetch("http://localhost:3001/api/versioni-server")
+    fetch(`${API_BASE}/api/versioni-server`)
       .then((res) => res.json())
       .then((data) => {
         setVersions(data);
@@ -148,7 +149,7 @@ export default function Page() {
     if (step === 2) {
       try {
         if (isNewUser) {
-          const res = await fetch("http://localhost:3001/api/register", {
+          const res = await fetch(`${API_BASE}/api/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(userData),
@@ -160,7 +161,7 @@ export default function Page() {
             return;
           }
         } else {
-          const res = await fetch("http://localhost:3001/api/auth/login", {
+          const res = await fetch(`${API_BASE}/api/auth/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email: userData.email, password: userData.password }),
@@ -603,8 +604,8 @@ export default function Page() {
                               setServerConfig({ ...serverConfig, version: "" });
                             }}
                             className={`w-[30%] min-w-[200px] max-w-[300px] p-3 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${selectedEgg === egg.nome
-                                ? "border-purple-500 bg-gradient-to-br from-purple-500/20 to-pink-500/20 text-purple-400 shadow-lg shadow-purple-500/25"
-                                : "border-gray-600 bg-slate-800 text-gray-300 hover:border-gray-500 hover:bg-slate-700"
+                              ? "border-purple-500 bg-gradient-to-br from-purple-500/20 to-pink-500/20 text-purple-400 shadow-lg shadow-purple-500/25"
+                              : "border-gray-600 bg-slate-800 text-gray-300 hover:border-gray-500 hover:bg-slate-700"
                               }`}
                           >
                             <div className="text-center">

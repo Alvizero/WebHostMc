@@ -13,11 +13,13 @@ const LoginPage = ({ onLogin }) => {
     const [isLoading, setIsLoading] = useState(false);
     const router = useRouter();
 
+    const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL;
+
     useEffect(() => {
         const token = localStorage.getItem('adminToken');
         if (!token) return; // Non loggato, resta qui e mostra form
 
-        fetch('http://localhost:3001/api/auth/verify', {
+        fetch(`${API_BASE}/api/auth/verify`, {
             headers: {
                 'Authorization': `Bearer ${token}`,
             },
@@ -42,7 +44,7 @@ const LoginPage = ({ onLogin }) => {
 
         try {
             // Chiamata API reale per login
-            const response = await fetch('http://localhost:3001/api/auth/login', {
+            const response = await fetch(`${API_BASE}/api/auth/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

@@ -24,13 +24,16 @@ const DashboardPanel = () => {
     const [selectedServer, setSelectedServer] = useState(null);
     const [serverTypes, setServerTypes] = useState([]);
 
+    const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL;
+    const PTERODACTYL_URL = process.env.NEXT_PUBLIC_PTERODACTYL_URL;
+
     // Carica i server
     const loadServers = async () => {
         setLoading(true);
         setError('');
         try {
             const token = localStorage.getItem('adminToken');
-            const response = await fetch('http://localhost:3001/api/admin/servers', {
+            const response = await fetch(`${API_BASE}/api/admin/servers`, {
                 method: 'GET',
                 headers: {
                     'Authorization': token ? `Bearer ${token}` : '',
@@ -60,7 +63,7 @@ const DashboardPanel = () => {
     // Carica i tipi di server dal database
     const fetchServerTypes = async () => {
         try {
-            const response = await fetch('http://localhost:3001/api/tipi-server');
+            const response = await fetch(`${API_BASE}/api/tipi-server`);
             if (response.ok) {
                 const types = await response.json();
                 setServerTypes(types);
@@ -79,7 +82,7 @@ const DashboardPanel = () => {
         }
 
         // Verifica token con API
-        fetch('http://localhost:3001/api/auth/verify', {
+        fetch(`${API_BASE}/api/auth/verify`, {
             headers: { Authorization: `Bearer ${token}` },
         })
             .then(res => res.json())
@@ -489,7 +492,7 @@ const DashboardPanel = () => {
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                     {server.pterodactyl_id ? (
                                                         <a
-                                                            href={`http://192.168.1.56/admin/servers/view/${server.pterodactyl_id}`}
+                                                            href={`${PTERODACTYL_URL}/admin/servers/view/${server.pterodactyl_id}`}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:from-blue-700 hover:to-blue-800 transition-all duration-200 inline-flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"

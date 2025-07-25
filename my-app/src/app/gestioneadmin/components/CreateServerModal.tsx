@@ -31,6 +31,7 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
     const [loadingPterodactylInfo, setLoadingPterodactylInfo] = useState(false);
     const [dockerImagesMap, setDockerImagesMap] = useState({});
 
+    const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL;
 
     // Carica dati al mount
     useEffect(() => {
@@ -65,7 +66,7 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
     const fetchTipiServer = async () => {
         try {
             setLoadingTipi(true);
-            const response = await fetch("http://localhost:3001/api/tipi-server");
+            const response = await fetch(`${API_BASE}/api/tipi-server`);
             if (!response.ok) {
                 throw new Error("Errore nel recupero dei tipi di server");
             }
@@ -84,7 +85,7 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
     const fetchVersioniEgg = async () => {
         try {
             setIsLoading(true);
-            const response = await fetch('http://localhost:3001/api/versioni-server-egg');
+            const response = await fetch(`${API_BASE}/api/versioni-server-egg`);
             if (!response.ok) throw new Error('Errore nel caricamento versioni egg');
             const data = await response.json();
             setVersioniEgg(data);
@@ -98,7 +99,7 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
 
     const fetchVersioniServer = async () => {
         try {
-            const response = await fetch('http://localhost:3001/api/versioni-server');
+            const response = await fetch(`${API_BASE}/api/versioni-server`);
             if (!response.ok) throw new Error('Errore nel caricamento versioni server');
             const data = await response.json();
             setVersioniServer(data);
@@ -113,14 +114,14 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
             setLoadingPterodactylInfo(true);
 
             // Fetch allocation info
-            const allocationResponse = await fetch('http://localhost:3001/api/pterodactyl/next-allocation');
+            const allocationResponse = await fetch(`${API_BASE}/api/pterodactyl/next-allocation`);
             if (allocationResponse.ok) {
                 const allocationData = await allocationResponse.json();
                 setAllocationInfo(allocationData);
             }
 
             // Fetch all docker images for each egg
-            const dockerResponse = await fetch('http://localhost:3001/api/pterodactyl/latest-docker-images');
+            const dockerResponse = await fetch(`${API_BASE}/api/pterodactyl/latest-docker-images`);
             if (dockerResponse.ok) {
                 const dockerData = await dockerResponse.json(); // array: [{ nome, docker_image }]
                 const map = {};
@@ -176,7 +177,7 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
         }
 
         // Verifica se l'email esiste nel database
-        const emailResponse = await fetch("http://localhost:3001/api/check-user", {
+        const emailResponse = await fetch(`${API_BASE}/api/check-user`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email: formData.proprietario_email.trim() }),
@@ -254,7 +255,7 @@ const CreateServerModal = ({ isOpen, onClose, onServerCreated }) => {
             console.log("🎯 formData.versione_server:", formData.versione_server);
             console.log("Server data da inviare:", serverData);
 
-            const response = await fetch('http://localhost:3001/api/servers', {
+            const response = await fetch(`${API_BASE}/api/servers`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

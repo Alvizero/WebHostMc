@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Server, Shield, Database, Calendar, Mail, Activity, Settings, RotateCcw, Trash2, Save, AlertTriangle, Loader2, MessageCircle, Edit, Package, Clock } from 'lucide-react';
+import { X, Server, Shield, Database, Calendar, Mail, Activity, Settings, RotateCcw, Trash2, Save, AlertTriangle, Loader2, MessageCircle, Edit, Package, Clock, Boxes } from 'lucide-react';
 
 const ServerManagementPage = ({ serverId, uuidShort, pterodactyl_id, onBack }) => {
     const [server, setServer] = useState(null);
@@ -14,8 +14,14 @@ const ServerManagementPage = ({ serverId, uuidShort, pterodactyl_id, onBack }) =
     const [pterodactylDetails, setPterodactylDetails] = useState(null);
     const [showPterodactylDetails, setShowPterodactylDetails] = useState(false);
     const [authToken, setAuthToken] = useState(null);
+    const [eggInfo, setEggInfo] = useState<{ eggType: string; version: string } | null>(null);
+    const [versioniEgg, setVersioniEgg] = useState<any[]>([]);
+    const [versioniServer, setVersioniServer] = useState<any[]>([]);
+    const [filteredVersioniServer, setFilteredVersioniServer] = useState<any[]>([]);
+    const [versionePersonalizzata, setVersionePersonalizzata] = useState(false);
 
-    const API_BASE = 'http://localhost:3001/api';
+    const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL;
+    const PTERODACTYL_URL = process.env.NEXT_PUBLIC_PTERODACTYL_URL;
 
     // Recupera il token JWT dal localStorage
     useEffect(() => {
@@ -39,7 +45,7 @@ const ServerManagementPage = ({ serverId, uuidShort, pterodactyl_id, onBack }) =
         setError(null);
 
         try {
-            const response = await fetch(`${API_BASE}/admin/servers/${serverId}`, {
+            const response = await fetch(`${API_BASE}/api/admin/servers/${serverId}`, {
                 headers: {
                     'Authorization': `Bearer ${authToken}`,
                     'Content-Type': 'application/json'
@@ -66,7 +72,7 @@ const ServerManagementPage = ({ serverId, uuidShort, pterodactyl_id, onBack }) =
 
     const fetchPterodactylDetails = async () => {
         try {
-            const response = await fetch(`${API_BASE}/admin/servers/${serverId}/pterodactyl-details`, {
+            const response = await fetch(`${API_BASE}/api/admin/servers/${serverId}/pterodactyl-details`, {
                 headers: {
                     'Authorization': `Bearer ${authToken}`,
                     'Content-Type': 'application/json'
@@ -97,7 +103,7 @@ const ServerManagementPage = ({ serverId, uuidShort, pterodactyl_id, onBack }) =
         setError(null);
 
         try {
-            const response = await fetch(`${API_BASE}/admin/servers/${serverId}`, {
+            const response = await fetch(`${API_BASE}/api/admin/servers/${serverId}`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${authToken}`,
@@ -112,7 +118,10 @@ const ServerManagementPage = ({ serverId, uuidShort, pterodactyl_id, onBack }) =
                     stato: server.stato,
                     n_rinnovi: server.n_rinnovi || 0,
                     n_backup: server.n_backup,
-                    commenti: server.commenti
+                    versione_egg: server.versione_egg,
+                    versione_server: server.versione_server,
+                    versione_egg: server.versione_egg,
+                    versione_server: server.versione_server
                 })
             });
 
@@ -139,7 +148,7 @@ const ServerManagementPage = ({ serverId, uuidShort, pterodactyl_id, onBack }) =
         setIsLoading(true);
 
         try {
-            const response = await fetch(`${API_BASE}/admin/servers/${serverId}`, {
+            const response = await fetch(`${API_BASE}/api/admin/servers/${serverId}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${authToken}`,
@@ -166,7 +175,7 @@ const ServerManagementPage = ({ serverId, uuidShort, pterodactyl_id, onBack }) =
         const newSuspendedState = !server.sospeso;
 
         try {
-            const response = await fetch(`${API_BASE}/admin/servers/${serverId}/toggle-suspend`, {
+            const response = await fetch(`${API_BASE}/api/admin/servers/${serverId}/toggle-suspend`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${authToken}`,
@@ -188,9 +197,11 @@ const ServerManagementPage = ({ serverId, uuidShort, pterodactyl_id, onBack }) =
     };
 
     const handleCancelEdit = () => {
-        setServer(originalServer);
+        // Ripristina completamente lo stato originale del server
+        setServer({ ...originalServer });
         setIsEditing(false);
         setError(null);
+        setVersionePersonalizzata(false);
     };
 
     const isExpiringSoon = () => {
@@ -201,7 +212,6 @@ const ServerManagementPage = ({ serverId, uuidShort, pterodactyl_id, onBack }) =
         return expiryDate > now && expiryDate <= thirtyDaysFromNow && server.stato === 'disponibile';
     };
 
-
     const [statiError, setStatiError] = useState<string | null>(null);
     const [statiOptions, setStatiOptions] = useState<string[]>([]);
     const [loadingStati, setLoadingStati] = useState(true);
@@ -209,7 +219,7 @@ const ServerManagementPage = ({ serverId, uuidShort, pterodactyl_id, onBack }) =
     useEffect(() => {
         async function fetchStati() {
             try {
-                const res = await fetch('http://localhost:3001/api/server/stati');
+                const res = await fetch('${API_BASE}/api/server/stati');
                 if (!res.ok) throw new Error(`Errore ${res.status}`);
                 const data: string[] = await res.json();
                 setStatiOptions(data);
@@ -231,12 +241,12 @@ const ServerManagementPage = ({ serverId, uuidShort, pterodactyl_id, onBack }) =
     useEffect(() => {
         const fetchTipiServer = async () => {
             try {
-                const response = await fetch("http://localhost:3001/api/tipi-server");
+                const response = await fetch("${API_BASE}/api/tipi-server");
                 if (!response.ok) {
                     throw new Error("Errore nel recupero dei tipi di server");
                 }
                 const data = await response.json();
-                const tipi = data.map((item: any) => item.nome); // supponendo che la colonna sia "nome"
+                const tipi = data.map((item: any) => item.nome);
                 setTipiOptions(tipi);
                 setLoadingTipi(false);
             } catch (error: any) {
@@ -248,6 +258,141 @@ const ServerManagementPage = ({ serverId, uuidShort, pterodactyl_id, onBack }) =
 
         fetchTipiServer();
     }, []);
+
+    const fetchEggAndVersion = async () => {
+        try {
+            const response = await fetch(`${API_BASE}/api/pterodactyl/client/servers/${uuidShort}/startup`, {
+                headers: {
+                    'Authorization': `Bearer ${authToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log("🎯 Egg info ricevuto:", data);
+
+                setEggInfo({
+                    eggType: data.eggType,
+                    version: data.version,
+                });
+
+                // Aggiorna i valori del server con i dati ricevuti SOLO se non sono già presenti
+                setServer(prev => ({
+                    ...prev,
+                    versione_egg: prev.versione_egg || data.eggType,
+                    versione_server: prev.versione_server || data.version
+                }));
+
+                // Aggiorna anche l'originalServer per mantenere la coerenza
+                setOriginalServer(prev => ({
+                    ...prev,
+                    versione_egg: prev.versione_egg || data.eggType,
+                    versione_server: prev.versione_server || data.version
+                }));
+            } else {
+                console.warn("⚠️ Errore nella fetch egg/version");
+            }
+        } catch (err) {
+            console.error("❌ Errore nel recupero egg/version:", err);
+        }
+    };
+
+    // Carica versioni egg e server una sola volta
+    useEffect(() => {
+        if (authToken) {
+            fetchVersioniEgg();
+            fetchVersioniServer();
+        }
+    }, [authToken]);
+
+    useEffect(() => {
+        if (server?.versione_egg && versioniServer.length > 0) {
+            const eggSelected = versioniEgg.find(egg =>
+                egg.id === parseInt(server.versione_egg) ||
+                egg.nome.toLowerCase() === server.versione_egg?.toLowerCase()
+            );
+            if (eggSelected) {
+                const filtered = versioniServer.filter(version =>
+                    version.tipo_nome.toLowerCase() === eggSelected.nome.toLowerCase()
+                );
+                setFilteredVersioniServer(filtered);
+
+                // Controlla se la versione corrente esiste nelle versioni filtrate
+                if (server.versione_server && !filtered.find(v => v.versione === server.versione_server)) {
+                    // Se la versione non esiste nelle dropdown, attiva la modalità personalizzata
+                    setVersionePersonalizzata(true);
+                }
+            }
+        } else {
+            setFilteredVersioniServer([]);
+        }
+    }, [server?.versione_egg, versioniEgg, versioniServer]);
+
+    useEffect(() => {
+        if (uuidShort && authToken && versioniEgg.length > 0 && versioniServer.length > 0) {
+            fetchEggAndVersion();
+        }
+    }, [uuidShort, authToken, versioniEgg, versioniServer]);
+
+    const fetchVersioniEgg = async () => {
+        try {
+            const res = await fetch("${API_BASE}/api/versioni-server-egg");
+            if (!res.ok) throw new Error("Errore nel caricamento versioni egg");
+            const data = await res.json();
+            setVersioniEgg(data);
+        } catch (err) {
+            console.error("Errore versioni egg:", err);
+        }
+    };
+
+    const fetchVersioniServer = async () => {
+        try {
+            const res = await fetch("${API_BASE}/api/versioni-server");
+            if (!res.ok) throw new Error("Errore nel caricamento versioni server");
+            const data = await res.json();
+            setVersioniServer(data);
+        } catch (err) {
+            console.error("Errore versioni server:", err);
+        }
+    };
+
+    const toggleVersionePersonalizzata = () => {
+        setVersionePersonalizzata(!versionePersonalizzata);
+        // Se si disattiva la versione personalizzata, resetta il campo versione_server
+        if (versionePersonalizzata) {
+            handleInputChange('versione_server', '');
+        }
+    };
+
+    // Funzione helper per ottenere il nome dell'egg selezionato
+    const getSelectedEggName = (versioneEgg) => {
+        if (!versioneEgg || versioniEgg.length === 0) return 'Non selezionato';
+
+        const selectedEgg = versioniEgg.find(egg =>
+            egg.id === parseInt(versioneEgg) ||
+            egg.nome.toLowerCase() === versioneEgg.toLowerCase()
+        );
+
+        return selectedEgg ? `${selectedEgg.icona} ${selectedEgg.nome}` : versioneEgg;
+    };
+
+    // Funzione helper per ottenere l'ID dell'egg selezionato
+    const getSelectedEggId = (versioneEgg) => {
+        if (!versioneEgg || versioniEgg.length === 0) return '';
+
+        // Se è già un ID numerico, ritornalo
+        if (!isNaN(versioneEgg)) {
+            return versioneEgg.toString();
+        }
+
+        // Altrimenti cerca per nome
+        const selectedEgg = versioniEgg.find(egg =>
+            egg.nome.toLowerCase() === versioneEgg.toLowerCase()
+        );
+
+        return selectedEgg ? selectedEgg.id.toString() : '';
+    };
 
     // Se non c'è il token, mostra un messaggio
     if (!authToken) {
@@ -298,7 +443,6 @@ const ServerManagementPage = ({ serverId, uuidShort, pterodactyl_id, onBack }) =
     }
 
     if (!server) return null;
-
 
     return (
         // Overlay di sfondo del modale
@@ -395,7 +539,7 @@ const ServerManagementPage = ({ serverId, uuidShort, pterodactyl_id, onBack }) =
                                         <div className="mt-2">
                                             {server.pterodactyl_id ? (
                                                 <a
-                                                    href={`http://192.168.1.56/admin/servers/view/${server.pterodactyl_id}`}
+                                                    href={`${PTERODACTYL_URL}/admin/servers/view/${server.pterodactyl_id}`}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="group bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 inline-flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
@@ -699,120 +843,265 @@ const ServerManagementPage = ({ serverId, uuidShort, pterodactyl_id, onBack }) =
                                                 </div>
                                             )}
                                         </div>
-                                    </div>
 
-                                    {/* Sezione Commenti - A tutta larghezza */}
-                                    <div className="space-y-3">
-                                        <label className="flex items-center text-sm font-semibold text-slate-700">
-                                            <MessageCircle className="h-4 w-4 mr-2" />
-                                            Commenti e Note
-                                        </label>
-                                        {isEditing ? (
-                                            <textarea
-                                                value={server.commenti || ''}
-                                                onChange={(e) => handleInputChange('commenti', e.target.value)}
-                                                className="w-full min-h-[120px] px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-400 text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400 hover:shadow-md resize-y"
-                                                placeholder="Inserisci commenti personalizzati, bug, fix, ecc... (questa sezione è visibile solo agli amministraotri)"
-                                                rows={5}
-                                            />
-                                        ) : (
-                                            <div className="min-h-[120px] px-4 py-3 bg-white rounded-xl border border-slate-200">
-                                                {server.commenti ? (
-                                                    <div className="text-slate-900 whitespace-pre-wrap leading-relaxed">
-                                                        {server.commenti}
-                                                    </div>
-                                                ) : (
-                                                    <div className="text-slate-500 italic flex">
-                                                        <MessageCircle className="h-5 w-5 mr-2" />
-                                                        Nessun commento aggiunto
+
+                                        {/* Tipo Egg */}
+                                        <div className="space-y-3">
+                                            <label className="flex items-center text-sm font-semibold text-slate-700">
+                                                <Boxes className="h-4 w-4 mr-2" />
+                                                Tipo Egg
+                                            </label>
+                                            {isEditing ? (
+                                                <select
+                                                    value={(() => {
+                                                        // Se server.versione_egg è già un ID numerico, usalo direttamente
+                                                        if (server.versione_egg && !isNaN(server.versione_egg)) {
+                                                            return server.versione_egg;
+                                                        }
+                                                        // Altrimenti cerca per nome
+                                                        const selectedEgg = versioniEgg?.find(egg =>
+                                                            egg.nome.toLowerCase() === server.versione_egg?.toLowerCase()
+                                                        );
+                                                        return selectedEgg ? selectedEgg.id : '';
+                                                    })()}
+                                                    onChange={(e) => handleInputChange('versione_egg', e.target.value)}
+                                                    className="w-full h-12 px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400 hover:shadow-md"
+                                                >
+                                                    <option value="">Seleziona versione egg...</option>
+                                                    {versioniEgg?.map((egg) => (
+                                                        <option key={egg.id} value={egg.id}>
+                                                            {egg.icona} {egg.nome} - {egg.descrizione}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            ) : (
+                                                <div className="h-12 flex items-center">
+                                                    <span className="bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 px-4 py-2 rounded-xl text-sm font-semibold border border-blue-200">
+                                                        {server.versione_egg ? (
+                                                            (() => {
+                                                                const selectedEgg = versioniEgg.find(egg =>
+                                                                    egg.id === parseInt(server.versione_egg) ||
+                                                                    egg.nome.toLowerCase() === server.versione_egg.toLowerCase()
+                                                                );
+                                                                return selectedEgg ? `${selectedEgg.icona} ${selectedEgg.nome}` : server.versione_egg;
+                                                            })()
+                                                        ) : (
+                                                            'Non selezionato'
+                                                        )}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Versione Server */}
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <label className="flex items-center text-sm font-semibold text-slate-700">
+                                                    <Package className="h-4 w-4 mr-2" />
+                                                    Versione Server
+                                                </label>
+                                                {isEditing && (
+                                                    <div className="flex items-center space-x-3">
+                                                        <span className="text-sm text-slate-600 font-medium">Versione personalizzata</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setVersionePersonalizzata(!versionePersonalizzata)}
+                                                            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${versionePersonalizzata ? 'bg-blue-600 shadow-lg' : 'bg-gray-300'}`}
+                                                        >
+                                                            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 ${versionePersonalizzata ? 'translate-x-6' : 'translate-x-1'}`} />
+                                                        </button>
                                                     </div>
                                                 )}
                                             </div>
-                                        )}
+
+                                            {isEditing ? (
+                                                versionePersonalizzata ? (
+                                                    server.versione_egg ? (
+                                                        <div className="space-y-2">
+                                                            <input
+                                                                type="text"
+                                                                value={server.versione_server || ''}
+                                                                onChange={(e) => handleInputChange('versione_server', e.target.value)}
+                                                                placeholder="Inserisci versione personalizzata (es. 1.20.4, latest, snapshot)"
+                                                                className="w-full h-12 px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-400 text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400 hover:shadow-md"
+                                                            />
+                                                            <div className="flex items-center justify-between">
+                                                                <p className="text-xs text-gray-400 italic">
+                                                                    Se la versione indicata è errata, verrà installata l'ultima versione disponibile.
+                                                                </p>
+                                                                <p className="text-xs text-gray-400 italic">
+                                                                    scrivere latest per installare l'ultima versione
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="w-full h-12 px-4 py-3 bg-slate-100 border border-slate-300 rounded-xl text-slate-400 flex items-center">
+                                                            Seleziona prima il tipo di egg...
+                                                        </div>
+                                                    )
+                                                ) : (
+                                                    <select
+                                                        value={(() => {
+                                                            // Se server.versione_server è già presente, usalo
+                                                            if (server.versione_server) {
+                                                                // Verifica se esiste nelle versioni filtrate
+                                                                const exists = filteredVersioniServer?.find(version =>
+                                                                    version.versione === server.versione_server
+                                                                );
+                                                                return exists ? server.versione_server : '';
+                                                            }
+                                                            return '';
+                                                        })()}
+                                                        onChange={(e) => handleInputChange('versione_server', e.target.value)}
+                                                        className="w-full h-12 px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400 hover:shadow-md disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                                        disabled={!server.versione_egg || filteredVersioniServer.length === 0}
+                                                    >
+                                                        <option value="">
+                                                            {!server.versione_egg
+                                                                ? 'Seleziona prima il tipo di egg...'
+                                                                : 'Seleziona versione server...'}
+                                                        </option>
+                                                        {filteredVersioniServer?.map((version) => {
+                                                            let label = version.versione;
+                                                            const badges = [];
+
+                                                            if (version.ultima_versione) badges.push('Ultima');
+                                                            if (version.popolare) badges.push('Popolare');
+
+                                                            if (badges.length > 0) {
+                                                                label += ` (${badges.join(', ')})`;
+                                                            }
+
+                                                            return (
+                                                                <option key={version.id} value={version.versione}>
+                                                                    {label}
+                                                                </option>
+                                                            );
+                                                        })}
+                                                    </select>
+                                                )
+                                            ) : (
+                                                <div className="h-12 flex items-center">
+                                                    <span className="bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 px-4 py-2 rounded-xl text-sm font-semibold border border-blue-200">
+                                                        {server.versione_server || 'Non selezionata'}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Sezione Commenti - A tutta larghezza */}
+                                        <div className="space-y-3">
+                                            <label className="flex items-center text-sm font-semibold text-slate-700">
+                                                <MessageCircle className="h-4 w-4 mr-2" />
+                                                Commenti e Note
+                                            </label>
+                                            {isEditing ? (
+                                                <textarea
+                                                    value={server.commenti || ''}
+                                                    onChange={(e) => handleInputChange('commenti', e.target.value)}
+                                                    className="w-full min-h-[120px] px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-400 text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400 hover:shadow-md resize-y"
+                                                    placeholder="Inserisci commenti personalizzati, bug, fix, ecc... (questa sezione è visibile solo agli amministraotri)"
+                                                    rows={5}
+                                                />
+                                            ) : (
+                                                <div className="min-h-[120px] px-4 py-3 bg-white rounded-xl border border-slate-200">
+                                                    {server.commenti ? (
+                                                        <div className="text-slate-900 whitespace-pre-wrap leading-relaxed">
+                                                            {server.commenti}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-slate-500 italic flex">
+                                                            <MessageCircle className="h-5 w-5 mr-2" />
+                                                            Nessun commento aggiunto
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="bg-gradient-to-br from-red-50 to-rose-50 rounded-2xl shadow-lg border border-red-200 p-6">
+                                <div className="flex items-center mb-4">
+                                    <div className="p-2 bg-red-100 rounded-lg mr-3">
+                                        <AlertTriangle className="h-5 w-5 text-red-600" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-red-800">
+                                        Azioni Pericolose
+                                    </h3>
+                                </div>
+                                <div className="bg-white/50 backdrop-blur-sm border border-red-200 rounded-xl p-4 shadow-sm">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center">
+                                            <div className="p-2 bg-red-100 rounded-lg mr-3">
+                                                <Trash2 className="h-5 w-5 text-red-600" />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-semibold text-red-800">Elimina Server</p>
+                                                <p className="text-sm text-red-600">Questa azione è irreversibile</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowDeleteConfirm(true)}
+                                            className="bg-gradient-to-r from-red-600 to-rose-600 text-white px-6 py-3 rounded-xl hover:from-red-700 hover:to-rose-700 transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                            <span className="font-semibold">Elimina</span>
+                                        </button>
                                     </div>
                                 </div>
                             </div>
                         </div>
+                    </div>
 
-                        {/* Actions */}
-                        <div className="bg-gradient-to-br from-red-50 to-rose-50 rounded-2xl shadow-lg border border-red-200 p-6">
-                            <div className="flex items-center mb-4">
-                                <div className="p-2 bg-red-100 rounded-lg mr-3">
-                                    <AlertTriangle className="h-5 w-5 text-red-600" />
-                                </div>
-                                <h3 className="text-xl font-bold text-red-800">
-                                    Azioni Pericolose
-                                </h3>
-                            </div>
-                            <div className="bg-white/50 backdrop-blur-sm border border-red-200 rounded-xl p-4 shadow-sm">
-                                <div className="flex items-center justify-between">
+                    {/* Delete Confirmation Modal */}
+                    {showDeleteConfirm && (
+                        <div className="fixed inset-0 bg-black/70 backdrop-blur-[3px] flex items-center justify-center z-60 p-4 animate-in fade-in duration-300" onClick={() => setShowDeleteConfirm(false)}>
+                            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-white/20 animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
+                                <div className="p-6 bg-gradient-to-r from-red-50 to-rose-50 border-b border-red-200 rounded-t-2xl">
                                     <div className="flex items-center">
-                                        <div className="p-2 bg-red-100 rounded-lg mr-3">
-                                            <Trash2 className="h-5 w-5 text-red-600" />
+                                        <div className="p-3 bg-gradient-to-r from-red-500 to-rose-600 rounded-xl shadow-lg mr-4">
+                                            <AlertTriangle className="h-6 w-6 text-white" />
                                         </div>
                                         <div>
-                                            <p className="text-sm font-semibold text-red-800">Elimina Server</p>
-                                            <p className="text-sm text-red-600">Questa azione è irreversibile</p>
+                                            <h3 className="text-2xl font-bold text-red-800">
+                                                Conferma Eliminazione
+                                            </h3>
+                                            <p className="text-red-600 text-sm mt-1">Questa azione non può essere annullata</p>
                                         </div>
                                     </div>
-                                    <button
-                                        onClick={() => setShowDeleteConfirm(true)}
-                                        className="bg-gradient-to-r from-red-600 to-rose-600 text-white px-6 py-3 rounded-xl hover:from-red-700 hover:to-rose-700 transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                        <span className="font-semibold">Elimina</span>
-                                    </button>
+                                </div>
+                                <div className="p-6">
+                                    <p className="text-slate-600 mb-6 leading-relaxed">
+                                        Sei sicuro di voler eliminare il server <span className="font-semibold text-slate-900 bg-slate-100 px-2 py-1 rounded">"{server.nome}"</span>?
+                                    </p>
+                                    <div className="flex justify-end space-x-3">
+                                        <button
+                                            onClick={() => setShowDeleteConfirm(false)}
+                                            className="px-6 py-3 text-slate-700 border border-slate-300 rounded-xl hover:bg-slate-50 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
+                                        >
+                                            Annulla
+                                        </button>
+                                        <button
+                                            onClick={handleDelete}
+                                            disabled={isLoading}
+                                            className="px-6 py-3 bg-gradient-to-r from-red-600 to-rose-600 text-white rounded-xl hover:from-red-700 hover:to-rose-700 transition-all duration-200 disabled:opacity-50 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none"
+                                        >
+                                            {isLoading ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                                <Trash2 className="h-4 w-4" />
+                                            )}
+                                            <span className="font-semibold">Elimina</span>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    )}
                 </div>
-
-                {/* Delete Confirmation Modal */}
-                {showDeleteConfirm && (
-                    <div className="fixed inset-0 bg-black/70 backdrop-blur-[3px] flex items-center justify-center z-60 p-4 animate-in fade-in duration-300" onClick={() => setShowDeleteConfirm(false)}>
-                        <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-white/20 animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
-                            <div className="p-6 bg-gradient-to-r from-red-50 to-rose-50 border-b border-red-200 rounded-t-2xl">
-                                <div className="flex items-center">
-                                    <div className="p-3 bg-gradient-to-r from-red-500 to-rose-600 rounded-xl shadow-lg mr-4">
-                                        <AlertTriangle className="h-6 w-6 text-white" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-2xl font-bold text-red-800">
-                                            Conferma Eliminazione
-                                        </h3>
-                                        <p className="text-red-600 text-sm mt-1">Questa azione non può essere annullata</p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="p-6">
-                                <p className="text-slate-600 mb-6 leading-relaxed">
-                                    Sei sicuro di voler eliminare il server <span className="font-semibold text-slate-900 bg-slate-100 px-2 py-1 rounded">"{server.nome}"</span>?
-                                </p>
-                                <div className="flex justify-end space-x-3">
-                                    <button
-                                        onClick={() => setShowDeleteConfirm(false)}
-                                        className="px-6 py-3 text-slate-700 border border-slate-300 rounded-xl hover:bg-slate-50 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
-                                    >
-                                        Annulla
-                                    </button>
-                                    <button
-                                        onClick={handleDelete}
-                                        disabled={isLoading}
-                                        className="px-6 py-3 bg-gradient-to-r from-red-600 to-rose-600 text-white rounded-xl hover:from-red-700 hover:to-rose-700 transition-all duration-200 disabled:opacity-50 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none"
-                                    >
-                                        {isLoading ? (
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (
-                                            <Trash2 className="h-4 w-4" />
-                                        )}
-                                        <span className="font-semibold">Elimina</span>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
         </div>
     );
