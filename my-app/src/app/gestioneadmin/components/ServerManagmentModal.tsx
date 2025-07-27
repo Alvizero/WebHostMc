@@ -882,7 +882,7 @@ const ServerManagementPage = ({ serverId, uuidShort, pterodactyl_id, onBack }) =
                                                                 egg.id === parseInt(server.versione_egg) ||
                                                                 egg.nome.toLowerCase() === server.versione_egg.toLowerCase()
                                                             );
-                                                            return selectedEgg ? `${selectedEgg.icona} ${selectedEgg.nome}` : server.versione_egg;
+                                                            return selectedEgg ? `${selectedEgg.icona} ${selectedEgg.nome} - ${selectedEgg.descrizione}` : server.versione_egg;
                                                         })()
                                                     ) : (
                                                         'Non selezionato'

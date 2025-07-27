@@ -662,7 +662,7 @@ app.post("/api/servers", async (req, res) => {
           startup: "java -Xms128M -XX:MaxRAMPercentage=95.0 -jar {{SERVER_JARFILE}}",
           environment: {
             SERVER_JARFILE: "server.jar",
-            PAPER_VERSION: version || "latset",
+            MINECRAFT_VERSION: version || "latset",
             BUILD_NUMBER: "latest"
           }
         },
@@ -928,7 +928,6 @@ app.get('/api/pterodactyl/client/servers/:uuid/startup', async (req, res) => {
   const { uuid } = req.params;
 
   try {
-
     if (!PTERODACTYL_CONFIG.tokenclient || !PTERODACTYL_CONFIG.baseUrl) {
       return res.status(500).json({ error: 'Configurazione API mancante' });
     }
@@ -950,12 +949,23 @@ app.get('/api/pterodactyl/client/servers/:uuid/startup', async (req, res) => {
 
     const version = versionVar?.attributes?.server_value || 'Sconosciuta';
 
+    // Mappa delle variabili di ambiente ai nomi degli egg
+    const envToEggName: { [key: string]: string } = {
+      'VANILLA_VERSION': 'Vanilla',
+      'MC_VERSION': 'Forge', // Forge usa MC_VERSION
+      'FORGE_VERSION': 'Forge',
+      'DL_VERSION': 'Spigot', // Spigot usa DL_VERSION
+      'PAPER_VERSION': 'Paper',
+      'MINECRAFT_VERSION': 'Paper', // Paper usa MINECRAFT_VERSION
+      'LOADER_VERSION': 'Fabric' // Fabric potrebbe usare LOADER_VERSION
+    };
+
     const eggTypeRaw = versionVar?.attributes?.env_variable || 'UNKNOWN_VERSION';
-    const eggType = eggTypeRaw.replace('_VERSION', '').toLowerCase();
+    const eggType = envToEggName[eggTypeRaw] || capitalize(eggTypeRaw.replace('_VERSION', ''));
 
     res.json({
-      eggType: capitalize(eggType), // esempio: "vanilla"
-      version                        // esempio: "1.21.7"
+      eggType,
+      version
     });
 
   } catch (error: any) {
