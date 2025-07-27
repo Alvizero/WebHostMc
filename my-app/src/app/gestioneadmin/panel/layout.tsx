@@ -82,7 +82,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                             <User className="h-4 w-4 mr-2" />
                             Gestione Utenti
                         </NavLink>
-                        <NavLink href="/minecraft" current={pathname.endsWith('/users')}>
+                        <NavLink href="/minecraft" current={pathname.endsWith('/minecraft')}>
                             <Home className="h-4 w-4 mr-2" />
                             Home
                         </NavLink>

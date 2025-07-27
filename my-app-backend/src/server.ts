@@ -941,32 +941,28 @@ app.get('/api/pterodactyl/client/servers/:uuid/startup', async (req, res) => {
     });
 
     const variables = response.data?.data || [];
-
-    // Trova una variabile tipo *_VERSION
-    const versionVar = variables.find((v: any) =>
-      v.attributes.env_variable.endsWith('_VERSION')
-    );
-
-    const version = versionVar?.attributes?.server_value || 'Sconosciuta';
+    const versionVar = variables.find((v: any) => v.attributes.env_variable.endsWith('_VERSION'));
+    
+    if (!versionVar) {
+      return res.json({ eggType: 'Unknown', version: 'Sconosciuta' });
+    }
 
     // Mappa delle variabili di ambiente ai nomi degli egg
     const envToEggName: { [key: string]: string } = {
       'VANILLA_VERSION': 'Vanilla',
-      'MC_VERSION': 'Forge', // Forge usa MC_VERSION
-      'FORGE_VERSION': 'Forge',
-      'DL_VERSION': 'Spigot', // Spigot usa DL_VERSION
+      'MC_VERSION': 'Forge',
+      'FORGE_VERSION': 'Forge', 
+      'DL_VERSION': 'Spigot',
       'PAPER_VERSION': 'Paper',
-      'MINECRAFT_VERSION': 'Paper', // Paper usa MINECRAFT_VERSION
-      'LOADER_VERSION': 'Fabric' // Fabric potrebbe usare LOADER_VERSION
+      'MINECRAFT_VERSION': 'Paper',
+      'LOADER_VERSION': 'Fabric'
     };
 
-    const eggTypeRaw = versionVar?.attributes?.env_variable || 'UNKNOWN_VERSION';
-    const eggType = envToEggName[eggTypeRaw] || capitalize(eggTypeRaw.replace('_VERSION', ''));
+    const envVar = versionVar.attributes.env_variable;
+    const eggType = envToEggName[envVar] || envVar.replace('_VERSION', '').toLowerCase().replace(/^\w/, (c: string) => c.toUpperCase());
+    const version = versionVar.attributes.server_value || 'Sconosciuta';
 
-    res.json({
-      eggType,
-      version
-    });
+    res.json({ eggType, version });
 
   } catch (error: any) {
     console.error('Errore nel recupero startup info:', error?.response?.data || error.message);
@@ -974,6 +970,444 @@ app.get('/api/pterodactyl/client/servers/:uuid/startup', async (req, res) => {
   }
 });
 
-function capitalize(str: string) {
-  return str.charAt(0).toUpperCase() + str.slice(1);
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* GESTIONE UTENTI *//* GESTIONE UTENTI *//* GESTIONE UTENTI *//* GESTIONE UTENTI *//* GESTIONE UTENTI *//* GESTIONE UTENTI *//* GESTIONE UTENTI *//* GESTIONE UTENTI */
+
+
+
+
+
+
+
+
+
+
+// Aggiungi queste routes dopo la sezione /* GESTIONE UTENTI */ nel tuo server.ts
+
+// GET /api/admin/users - Ottieni tutti gli utenti
+app.get('/api/admin/users', authenticateAdmin, async (req: Request, res: Response) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT 
+        id, 
+        nome, 
+        cognome, 
+        username, 
+        email, 
+        ruolo, 
+        data_registrazione 
+      FROM utenti 
+      ORDER BY id ASC
+    `);
+
+    const users = rows as any[];
+
+    res.json({
+      success: true,
+      users: users
+    });
+  } catch (error) {
+    console.error('Errore nel recupero degli utenti:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Errore interno del server',
+      error: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    });
+  }
+});
+
+// GET /api/admin/users/:id - Ottieni un utente specifico
+app.get('/api/admin/users/:id', authenticateAdmin, async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.id;
+
+    if (!userId || isNaN(Number(userId))) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID utente non valido'
+      });
+    }
+
+    const [rows] = await pool.query(`
+      SELECT 
+        id, 
+        nome, 
+        cognome, 
+        username, 
+        email, 
+        ruolo, 
+        data_registrazione 
+      FROM utenti 
+      WHERE id = ?
+    `, [userId]);
+
+    const users = rows as any[];
+
+    if (users.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Utente non trovato'
+      });
+    }
+
+    res.json({
+      success: true,
+      user: users[0]
+    });
+  } catch (error) {
+    console.error('Errore nel recupero dell\'utente:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Errore interno del server',
+      error: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    });
+  }
+});
+
+// POST /api/admin/users - Crea un nuovo utente
+app.post('/api/admin/users', authenticateAdmin, async (req: Request, res: Response) => {
+  try {
+    const { nome, cognome, username, email, password, ruolo = 'user' } = req.body;
+
+    // Validazione input
+    if (!nome || !cognome || !username || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tutti i campi sono obbligatori: nome, cognome, username, email, password'
+      });
+    }
+
+    // Validazione email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Formato email non valido'
+      });
+    }
+
+    // Validazione ruolo
+    if (!['admin', 'user'].includes(ruolo)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Ruolo non valido. Deve essere "admin" o "user"'
+      });
+    }
+
+    // Verifica se username o email esistono già
+    const [existingUsers] = await pool.query(`
+      SELECT id FROM utenti 
+      WHERE username = ? OR email = ?
+    `, [username, email]);
+
+    if ((existingUsers as any[]).length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'Username o email già esistenti'
+      });
+    }
+
+    // Hash della password
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+
+    // Inserimento nuovo utente
+    const [result] = await pool.query(`
+      INSERT INTO utenti (nome, cognome, username, email, password_hash, ruolo, data_registrazione)
+      VALUES (?, ?, ?, ?, ?, ?, NOW())
+    `, [nome, cognome, username, email, passwordHash, ruolo]);
+
+    const insertResult = result as ResultSetHeader;
+
+    // Recupera l'utente appena creato
+    const [newUserRows] = await pool.query(`
+      SELECT id, nome, cognome, username, email, ruolo, data_registrazione
+      FROM utenti 
+      WHERE id = ?
+    `, [insertResult.insertId]);
+
+    const newUser = (newUserRows as any[])[0];
+
+    res.status(201).json({
+      success: true,
+      message: 'Utente creato con successo',
+      user: newUser
+    });
+  } catch (error) {
+    console.error('Errore nella creazione dell\'utente:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Errore interno del server',
+      error: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    });
+  }
+});
+
+// PUT /api/admin/users/:id - Aggiorna un utente
+app.put('/api/admin/users/:id', authenticateAdmin, async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.id;
+    const { nome, cognome, username, email, ruolo } = req.body;
+
+    if (!userId || isNaN(Number(userId))) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID utente non valido'
+      });
+    }
+
+    // Validazione input
+    if (!nome || !cognome || !username || !email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tutti i campi sono obbligatori: nome, cognome, username, email'
+      });
+    }
+
+    // Validazione email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Formato email non valido'
+      });
+    }
+
+    // Validazione ruolo se fornito
+    if (ruolo && !['admin', 'user'].includes(ruolo)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Ruolo non valido. Deve essere "admin" o "user"'
+      });
+    }
+
+    // Verifica se l'utente esiste
+    const [existingUserRows] = await pool.query(`
+      SELECT id FROM utenti WHERE id = ?
+    `, [userId]);
+
+    if ((existingUserRows as any[]).length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Utente non trovato'
+      });
+    }
+
+    // Verifica se username o email sono già utilizzati da altri utenti
+    const [duplicateCheck] = await pool.query(`
+      SELECT id FROM utenti 
+      WHERE (username = ? OR email = ?) AND id != ?
+    `, [username, email, userId]);
+
+    if ((duplicateCheck as any[]).length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'Username o email già utilizzati da un altro utente'
+      });
+    }
+
+    // Aggiornamento utente
+    let updateQuery = `
+      UPDATE utenti 
+      SET nome = ?, cognome = ?, username = ?, email = ?
+    `;
+    let updateParams: any[] = [nome, cognome, username, email];
+
+    if (ruolo) {
+      updateQuery += `, ruolo = ?`;
+      updateParams.push(ruolo);
+    }
+
+    updateQuery += ` WHERE id = ?`;
+    updateParams.push(userId);
+
+    await pool.query(updateQuery, updateParams);
+
+    // Recupera l'utente aggiornato
+    const [updatedUserRows] = await pool.query(`
+      SELECT id, nome, cognome, username, email, ruolo, data_registrazione
+      FROM utenti 
+      WHERE id = ?
+    `, [userId]);
+
+    const updatedUser = (updatedUserRows as any[])[0];
+
+    res.json({
+      success: true,
+      message: 'Utente aggiornato con successo',
+      user: updatedUser
+    });
+  } catch (error) {
+    console.error('Errore nell\'aggiornamento dell\'utente:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Errore interno del server',
+      error: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    });
+  }
+});
+
+// DELETE /api/admin/users/:id - Elimina un utente
+app.delete('/api/admin/users/:id', authenticateAdmin, async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.id;
+    const currentUser = (req as any).user;
+
+    if (!userId || isNaN(Number(userId))) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID utente non valido'
+      });
+    }
+
+    // Impedisci all'admin di eliminare se stesso
+    if (parseInt(userId) === currentUser.id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Non puoi eliminare il tuo stesso account'
+      });
+    }
+
+    // Verifica se l'utente esiste
+    const [existingUserRows] = await pool.query(`
+      SELECT id, email FROM utenti WHERE id = ?
+    `, [userId]);
+
+    const existingUsers = existingUserRows as any[];
+
+    if (existingUsers.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Utente non trovato'
+      });
+    }
+
+    const userEmail = existingUsers[0].email;
+
+    // Inizia una transazione per eliminare utente e server associati
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      // Elimina tutti i server dell'utente (assumendo che ci sia una tabella servers)
+      await connection.query(`
+        DELETE FROM servers WHERE proprietario_email = ?
+      `, [userEmail]);
+
+      // Elimina l'utente
+      await connection.query(`
+        DELETE FROM utenti WHERE id = ?
+      `, [userId]);
+
+      // Commit della transazione
+      await connection.commit();
+
+      res.json({
+        success: true,
+        message: 'Utente e tutti i suoi server eliminati con successo'
+      });
+    } catch (error) {
+      // Rollback in caso di errore
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Errore nell\'eliminazione dell\'utente:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Errore interno del server',
+      error: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    });
+  }
+});
+
+// POST /api/admin/users/:id/reset-password - Reset password utente
+app.post('/api/admin/users/:id/reset-password', authenticateAdmin, async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.id;
+
+    if (!userId || isNaN(Number(userId))) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID utente non valido'
+      });
+    }
+
+    // Verifica se l'utente esiste
+    const [existingUserRows] = await pool.query(`
+      SELECT id, email, nome, cognome FROM utenti WHERE id = ?
+    `, [userId]);
+
+    const existingUsers = existingUserRows as any[];
+
+    if (existingUsers.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Utente non trovato'
+      });
+    }
+
+    const user = existingUsers[0];
+
+    // Genera una nuova password temporanea
+    const tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+
+    // Aggiorna la password nel database
+    await pool.query(`
+      UPDATE utenti SET password_hash = ? WHERE id = ?
+    `, [hashedPassword, userId]);
+
+    // Qui dovresti implementare l'invio dell'email
+    // Per ora loggo la password temporanea (in produzione rimuovi questo log!)
+    console.log(`Password temporanea per ${user.email}: ${tempPassword}`);
+
+    // TODO: Implementare invio email con nodemailer
+    /*
+    const transporter = nodemailer.createTransporter({
+      // configurazione SMTP
+    });
+
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM,
+      to: user.email,
+      subject: 'Reset Password - WebHostMC',
+      html: `
+        <h2>Reset Password</h2>
+        <p>Ciao ${user.nome} ${user.cognome},</p>
+        <p>La tua password è stata reimpostata dall'amministratore.</p>
+        <p>La tua nuova password temporanea è: <strong>${tempPassword}</strong></p>
+        <p>Ti consigliamo di cambiarla al prossimo accesso.</p>
+      `
+    });
+    */
+
+    res.json({
+      success: true,
+      message: 'Password reimpostata con successo. Email inviata all\'utente.',
+      // In sviluppo puoi includere la password temporanea per test
+      ...(process.env.NODE_ENV === 'development' && { tempPassword })
+    });
+  } catch (error) {
+    console.error('Errore nel reset password:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Errore interno del server',
+      error: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    });
+  }
+});
