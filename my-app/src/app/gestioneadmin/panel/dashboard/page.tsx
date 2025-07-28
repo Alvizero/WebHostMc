@@ -380,8 +380,8 @@ const DashboardPanel = () => {
                                 >
                                     <option value="tutti">Tutti i server</option>
                                     <option value="disponibili">Disponibili</option>
-                                    <option value="scaduti">Scaduti</option>
                                     <option value="in_scadenza">In scadenza</option>
+                                    <option value="scaduti">Scaduti</option>
                                     <option value="sospesi">Sospesi</option>
                                 </select>
                             </div>

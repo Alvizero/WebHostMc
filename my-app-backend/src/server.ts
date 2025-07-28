@@ -942,7 +942,7 @@ app.get('/api/pterodactyl/client/servers/:uuid/startup', async (req, res) => {
 
     const variables = response.data?.data || [];
     const versionVar = variables.find((v: any) => v.attributes.env_variable.endsWith('_VERSION'));
-    
+
     if (!versionVar) {
       return res.json({ eggType: 'Unknown', version: 'Sconosciuta' });
     }
@@ -951,7 +951,7 @@ app.get('/api/pterodactyl/client/servers/:uuid/startup', async (req, res) => {
     const envToEggName: { [key: string]: string } = {
       'VANILLA_VERSION': 'Vanilla',
       'MC_VERSION': 'Forge',
-      'FORGE_VERSION': 'Forge', 
+      'FORGE_VERSION': 'Forge',
       'DL_VERSION': 'Spigot',
       'PAPER_VERSION': 'Paper',
       'MINECRAFT_VERSION': 'Paper',
@@ -1303,7 +1303,7 @@ app.delete('/api/admin/users/:id', authenticateAdmin, async (req: Request, res: 
     try {
       // Elimina tutti i server dell'utente (assumendo che ci sia una tabella servers)
       await connection.query(`
-        DELETE FROM servers WHERE proprietario_email = ?
+        DELETE FROM server WHERE proprietario_email = ?
       `, [userEmail]);
 
       // Elimina l'utente
@@ -1404,6 +1404,66 @@ app.post('/api/admin/users/:id/reset-password', authenticateAdmin, async (req: R
     });
   } catch (error) {
     console.error('Errore nel reset password:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Errore interno del server',
+      error: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    });
+  }
+});
+
+app.get('/api/admin/users/:id/servers', authenticateAdmin, async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.id;
+
+    if (!userId || isNaN(Number(userId))) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID utente non valido'
+      });
+    }
+
+    // Prima ottieni l'email dell'utente
+    const [userRows] = await pool.query(`
+      SELECT email FROM utenti WHERE id = ?
+    `, [userId]);
+
+    const users = userRows as any[];
+
+    if (users.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Utente non trovato'
+      });
+    }
+
+    const userEmail = users[0].email;
+
+    // Poi ottieni i server dell'utente
+    const [serverRows] = await pool.query(`
+      SELECT 
+        id,
+        nome,
+        tipo,
+        data_acquisto,
+        data_scadenza,
+        stato,
+        pterodactyl_id,
+        uuidShort,
+        n_rinnovi
+      FROM server 
+      WHERE proprietario_email = ?
+      ORDER BY data_acquisto DESC
+    `, [userEmail]);
+
+    const servers = serverRows as any[];
+
+    res.json({
+      success: true,
+      servers: servers
+    });
+  } catch (error) {
+    console.error('Errore nel recupero dei server dell\'utente:', error);
     res.status(500).json({
       success: false,
       message: 'Errore interno del server',
